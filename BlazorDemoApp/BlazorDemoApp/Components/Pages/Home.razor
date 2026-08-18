@@ -1,0 +1,89 @@
+﻿@page "/"
+@using BlazorDemoApp.Models
+@using BlazorDemoApp.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
+@rendermode InteractiveServer
+
+<PageTitle>Azure Blazor Demo</PageTitle>
+
+<div class="container mt-4">
+    <h1>🚀 Blazor + Azure SQL Demo</h1>
+    <p class="text-muted">Aplikacja hostowana na Azure App Service, dane w Azure SQL Database.</p>
+
+    <hr />
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="Wpisz nowe zadanie..." @bind="newTaskTitle" />
+                <button class="btn btn-primary" @onclick="AddTask">Dodaj do bazy</button>
+            </div>
+        </div>
+    </div>
+
+    @if (tasks == null)
+    {
+        <p><em>Ładowanie danych z chmury Azure...</em></p>
+    }
+    else if (!tasks.Any())
+    {
+        <p>Brak zadań w bazie.</p>
+    }
+    else
+    {
+        <ul class="list-group col-md-6">
+            @foreach (var item in tasks)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <input type="checkbox" class="form-check-input me-2" checked="@item.IsCompleted" @onchange="() => ToggleTask(item)" />
+                        <span style="@(item.IsCompleted ? "text-decoration: line-through;" : "")">@item.Title</span>
+                    </div>
+                    <small class="text-muted">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private List<DemoTask>? tasks;
+    private string newTaskTitle = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTasks();
+    }
+
+    private async Task LoadTasks()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        tasks = await context.DemoTasks.OrderByDescending(t => t.CreatedAt).ToListAsync();
+    }
+
+    private async Task AddTask()
+    {
+        if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
+
+        using var context = await DbFactory.CreateDbContextAsync();
+        var task = new DemoTask { Title = newTaskTitle, IsCompleted = false, CreatedAt = DateTime.UtcNow };
+        context.DemoTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        newTaskTitle = string.Empty;
+        await LoadTasks();
+    }
+
+    private async Task ToggleTask(DemoTask item)
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        var taskInDb = await context.DemoTasks.FindAsync(item.Id);
+        if (taskInDb != null)
+        {
+            taskInDb.IsCompleted = !taskInDb.IsCompleted;
+            await context.SaveChangesAsync();
+        }
+        await LoadTasks();
+    }
+}
