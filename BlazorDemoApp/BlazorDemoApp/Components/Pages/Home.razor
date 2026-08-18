@@ -13,34 +13,69 @@
 
     <hr />
 
-    <div class="row mb-4">
-        <div class="col-md-6">
+    <!-- Komunikat o błędzie / limicie -->
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show col-md-8 col-lg-6" role="alert">
+            <strong>Uwaga!</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Formularz dodawania zadań -->
+    <div class="row mb-3">
+        <div class="col-md-8 col-lg-6">
             <div class="input-group">
-                <input type="text" class="form-control" placeholder="Wpisz nowe zadanie..." @bind="newTaskTitle" />
-                <button class="btn btn-primary" @onclick="AddTask">Dodaj do bazy</button>
+                <input type="text"
+                       class="form-control"
+                       placeholder="Wpisz nowe zadanie..."
+                       @bind="newTaskTitle"
+                       @bind:event="oninput"
+                       @onkeyup="HandleKeyUp" />
+                <button class="btn btn-primary" @onclick="AddTask" disabled="@(tasks != null && tasks.Count >= 10)">
+                    Dodaj do bazy
+                </button>
             </div>
+            <small class="text-muted mt-1 d-block">
+                Liczba zadań: @(tasks?.Count ?? 0) / 10 (limit wersji demo)
+            </small>
         </div>
     </div>
 
+    <!-- Lista zadań pobrana z bazy Azure SQL -->
     @if (tasks == null)
     {
         <p><em>Ładowanie danych z chmury Azure...</em></p>
     }
     else if (!tasks.Any())
     {
-        <p>Brak zadań w bazie.</p>
+        <div class="alert alert-info col-md-8 col-lg-6">
+            Brak zadań w bazie. Wpisz coś powyżej i kliknij „Dodaj do bazy”!
+        </div>
     }
     else
     {
-        <ul class="list-group col-md-6">
+        <ul class="list-group col-md-8 col-lg-6">
             @foreach (var item in tasks)
             {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <input type="checkbox" class="form-check-input me-2" checked="@item.IsCompleted" @onchange="() => ToggleTask(item)" />
-                        <span style="@(item.IsCompleted ? "text-decoration: line-through;" : "")">@item.Title</span>
+                <li class="list-group-item d-flex justify-content-between align-items-center shadow-sm mb-1 rounded">
+                    <div class="d-flex align-items-center">
+                        <input type="checkbox"
+                               class="form-check-input me-3"
+                               checked="@item.IsCompleted"
+                               @onchange="() => ToggleTask(item)" />
+                        <span style="@(item.IsCompleted ? "text-decoration: line-through; color: #6c757d;" : "")">
+                            @item.Title
+                        </span>
                     </div>
-                    <small class="text-muted">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <small class="text-muted">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
+                        <!-- Czerwony przycisk usuwania -->
+                        <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteTask(item.Id)" title="Usuń z bazy">
+                            Usuń
+                        </button>
+                    </div>
                 </li>
             }
         </ul>
@@ -50,6 +85,7 @@
 @code {
     private List<DemoTask>? tasks;
     private string newTaskTitle = string.Empty;
+    private string errorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -64,10 +100,27 @@
 
     private async Task AddTask()
     {
+        errorMessage = string.Empty;
+
         if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
 
         using var context = await DbFactory.CreateDbContextAsync();
-        var task = new DemoTask { Title = newTaskTitle, IsCompleted = false, CreatedAt = DateTime.UtcNow };
+
+        // Sprawdzenie limitu 10 wpisów w bazie
+        var currentCount = await context.DemoTasks.CountAsync();
+        if (currentCount >= 10)
+        {
+            errorMessage = "Osiągnięto limit 10 wpisów w bazie! Usuń wcześniejsze zadania, aby dodać nowe.";
+            return;
+        }
+
+        var task = new DemoTask
+        {
+            Title = newTaskTitle.Trim(),
+            IsCompleted = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
         context.DemoTasks.Add(task);
         await context.SaveChangesAsync();
 
@@ -85,5 +138,29 @@
             await context.SaveChangesAsync();
         }
         await LoadTasks();
+    }
+
+    private async Task DeleteTask(int taskId)
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        var taskInDb = await context.DemoTasks.FindAsync(taskId);
+        if (taskInDb != null)
+        {
+            context.DemoTasks.Remove(taskInDb);
+            await context.SaveChangesAsync();
+
+            // Jeśli limit blokował dodawanie, wyczyść komunikat po usunięciu
+            errorMessage = string.Empty;
+        }
+        await LoadTasks();
+    }
+
+    // Obsługa dodawania zadania klawiszem Enter w polu tekstowym
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AddTask();
+        }
     }
 }
