@@ -1,0 +1,133 @@
+﻿@page "/fizzbuzz"
+@rendermode InteractiveWebAssembly
+
+<PageTitle>FizzBuzz Game - Azure Blazor</PageTitle>
+
+<div class="container mt-4">
+    <h1>🔢 Gra FizzBuzz</h1>
+    <p class="text-muted">
+        Klasyczny algorytm programistyczny: Podzielne przez <strong>3 = Fizz</strong>, przez <strong>5 = Buzz</strong>, a przez <strong>3 i 5 = FizzBuzz</strong>!
+    </p>
+
+    <hr />
+
+    <div class="row">
+        <div class="col-md-6 col-lg-5">
+            <!-- Formularz wprowadzania liczby -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <label for="numberInput" class="form-label fw-bold">Wpisz liczbę całkowitą:</label>
+                    <div class="input-group mb-2">
+                        <input id="numberInput"
+                               type="number"
+                               class="form-control form-control-lg"
+                               placeholder="np. 15"
+                               @bind="enteredNumber"
+                               @bind:event="oninput"
+                               @onkeyup="HandleKeyUp" />
+                        <button class="btn btn-primary btn-lg" @onclick="CheckFizzBuzz">
+                            Sprawdź
+                        </button>
+                    </div>
+                    <small class="text-muted">Możesz też wcisnąć klawisz <strong>Enter</strong> na klawiaturze.</small>
+                </div>
+            </div>
+
+            <!-- Wynik -->
+            @if (!string.IsNullOrEmpty(resultText))
+            {
+                <div class="alert @resultAlertClass shadow-sm text-center py-3" role="alert">
+                    <h3 class="mb-0">@resultText</h3>
+                </div>
+            }
+        </div>
+
+        <!-- Historia ostatnich sprawdzeń -->
+        @if (history.Any())
+        {
+            <div class="col-md-6 col-lg-5 offset-lg-1">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">Ostatnie sprawdzenia:</h5>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => history.Clear()">Wyczyść historię</button>
+                </div>
+                <ul class="list-group shadow-sm">
+                    @foreach (var item in history.Take(5))
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>Liczba: <strong>@item.Number</strong></span>
+                            <span class="badge @item.BadgeClass px-3 py-2 fs-6">@item.Result</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private int? enteredNumber;
+    private string resultText = string.Empty;
+    private string resultAlertClass = "alert-secondary";
+    private List<HistoryItem> history = new();
+
+    private void CheckFizzBuzz()
+    {
+        if (!enteredNumber.HasValue)
+        {
+            resultText = "⚠️ Wpisz poprawną liczbę!";
+            resultAlertClass = "alert-warning";
+            return;
+        }
+
+        int n = enteredNumber.Value;
+        string result;
+        string badgeClass;
+
+        if (n % 3 == 0 && n % 5 == 0)
+        {
+            result = "FizzBuzz 🎉";
+            resultText = $"💥 {n} to FizzBuzz!";
+            resultAlertClass = "alert-danger text-danger fw-bold";
+            badgeClass = "bg-danger";
+        }
+        else if (n % 3 == 0)
+        {
+            result = "Fizz 🔵";
+            resultText = $"🔵 {n} to Fizz! (podzielna przez 3)";
+            resultAlertClass = "alert-primary text-primary fw-bold";
+            badgeClass = "bg-primary";
+        }
+        else if (n % 5 == 0)
+        {
+            result = "Buzz 🟢";
+            resultText = $"🟢 {n} to Buzz! (podzielna przez 5)";
+            resultAlertClass = "alert-success text-success fw-bold";
+            badgeClass = "bg-success";
+        }
+        else
+        {
+            result = n.ToString();
+            resultText = $"👉 Wynik: {n} (brak dopasowania)";
+            resultAlertClass = "alert-secondary text-dark";
+            badgeClass = "bg-secondary";
+        }
+
+        // Dodaj do historii na początek listy
+        history.Insert(0, new HistoryItem { Number = n, Result = result, BadgeClass = badgeClass });
+    }
+
+    private void HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            CheckFizzBuzz();
+        }
+    }
+
+    private class HistoryItem
+    {
+        public int Number { get; set; }
+        public string Result { get; set; } = string.Empty;
+        public string BadgeClass { get; set; } = string.Empty;
+    }
+}
