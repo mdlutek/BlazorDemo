@@ -9,11 +9,16 @@
 <PageTitle>Azure Blazor Demo</PageTitle>
 
 <div class="container mt-4">
-    <!-- Górny pasek: Tytuł + Przycisk GitHub -->
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
+    <!-- Górny pasek: Tytuł + Informacja o architekturze + Przycisk GitHub -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
         <div>
             <h1 class="mb-1">🚀 Blazor + Azure SQL Demo</h1>
-            <p class="text-muted mb-0">Aplikacja hostowana na Azure App Service, dane w Azure SQL Database.</p>
+            <p class="text-muted mb-1">
+                Aplikacja hostowana na <strong>Azure App Service</strong>, dane w <strong>Azure SQL Database</strong>.
+            </p>
+            <p class="text-secondary small mb-0">
+                🧹 <em>Wszystkie wpisy są automatycznie kasowane raz na dobę (o północy UTC) przez bezserwerową funkcję <strong>Azure Functions (Timer Trigger)</strong>.</em>
+            </p>
         </div>
 
         <!-- Przycisk GitHub -->
@@ -31,7 +36,7 @@
     </div>
 
     <hr />
-    
+
     <!-- Formularz dodawania zadań -->
     <div class="row mb-3">
         <div class="col-md-8 col-lg-6">
@@ -41,8 +46,8 @@
                        placeholder="Wpisz nowe zadanie..."
                        @bind="newTaskTitle"
                        @bind:event="oninput"
-                       @onkeyup="HandleKeyUp" 
-                       maxlength="200"/>
+                       @onkeyup="HandleKeyUp"
+                       maxlength="200" />
                 <button class="btn btn-primary" @onclick="AddTask" disabled="@(tasks != null && tasks.Count >= 10)">
                     Dodaj do bazy
                 </button>
@@ -78,23 +83,27 @@
         <ul class="list-group col-md-8 col-lg-6">
             @foreach (var item in tasks)
             {
-                <li class="list-group-item d-flex justify-content-between align-items-center shadow-sm mb-1 rounded">
-                    <div class="d-flex align-items-center">
+                <li class="list-group-item d-flex justify-content-between align-items-center shadow-sm mb-2 p-2 rounded">
+
+                    <!-- Lewa strona: Checkbox + Tytuł (z automatycznym łamaniem tekstu) -->
+                    <div class="d-flex align-items-center flex-grow-1 me-3" style="min-width: 0;">
                         <input type="checkbox"
-                               class="form-check-input me-3"
+                               class="form-check-input me-3 flex-shrink-0"
                                checked="@item.IsCompleted"
                                @onchange="() => ToggleTask(item)" />
-                        <span style="@(item.IsCompleted ? "text-decoration: line-through; color: #6c757d;" : "")">
+                        <span class="text-break" style="@(item.IsCompleted ? "text-decoration: line-through; color: #6c757d;" : "")">
                             @item.Title
                         </span>
                     </div>
 
-                    <div class="d-flex align-items-center gap-2">
-                        <small class="text-muted">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
+                    <!-- Prawa strona: Data + Przycisk usuwania (nigdy się nie skurczą) -->
+                    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                        <small class="text-muted text-nowrap">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
                         <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteTask(item.Id)" title="Usuń z bazy">
                             Usuń
                         </button>
                     </div>
+
                 </li>
             }
         </ul>
@@ -121,8 +130,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Błąd podczas pobierania zadań z bazy Azure SQL");
-            errorMessage = "Nie udało się pobrać zadań z bazy danych. Sprawdź połączenie.";
-            // Ustawiamy pustą listę, aby zdjąć napis "Ładowanie danych..." i pokazać błąd
+            errorMessage = "Nie udało się pobrać zadań z bazy danych.";
             tasks = new List<DemoTask>();
         }
     }
@@ -137,7 +145,6 @@
         {
             using var context = await DbFactory.CreateDbContextAsync();
 
-            // Liczenie również wewnątrz bloku try
             var currentCount = await context.DemoTasks.CountAsync();
             if (currentCount >= 10)
             {
@@ -187,7 +194,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Błąd podczas zmiany statusu zadania o ID {TaskId}", item.Id);
+            Logger.LogError(ex, "Błąd podczas aktualizacji zadania {TaskId}", item.Id);
             errorMessage = "Nie udało się zaktualizować statusu zadania.";
         }
     }
@@ -209,8 +216,8 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Błąd podczas usuwania zadania o ID {TaskId}", taskId);
-            errorMessage = "Nie udało się usunąć zadania z bazy.";
+            Logger.LogError(ex, "Błąd podczas usuwania zadania {TaskId}", taskId);
+            errorMessage = "Nie udało się usunąć zadania.";
         }
     }
 

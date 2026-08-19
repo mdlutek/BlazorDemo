@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="BlazorDemo.Functions/BlazorDemo.Functions.csproj" Id="c5183e95-8545-4aee-a2bb-9a202b002473" />
   <Project Path="BlazorDemoApp/BlazorDemoApp.Client/BlazorDemoApp.Client.csproj" />
   <Project Path="BlazorDemoApp/BlazorDemoApp/BlazorDemoApp.csproj" />
 </Solution>
