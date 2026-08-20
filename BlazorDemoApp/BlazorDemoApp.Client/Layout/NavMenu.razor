@@ -1,13 +1,17 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿<!-- Odstęp dla telefonów, żeby treść strony nie chowała się pod przyklejonym paskiem -->
+<div class="mobile-nav-spacer"></div>
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">MD - Blazor</a>
     </div>
 </div>
 
+<!-- Przełącznik burger menu na telefonach -->
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<!-- Kontener menu rozciągnięty na całą wysokość ekranu -->
-<div class="nav-scrollable d-flex flex-column" style="height: calc(100vh - 3.5rem);">
+<!-- Kontener menu (pływająca karta dopasowująca się do zawartości) -->
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').checked = false;">
 
     <!-- Elementy nawigacji -->
     <nav class="flex-column nav">
@@ -59,14 +63,83 @@
         </div>
     </nav>
 
-    <!-- Stopka z wersją na dole -->
-    <div class="px-3 py-3 border-top border-secondary text-center mt-auto">
+    <!-- Stopka z wersją -->
+    <div class="nav-footer px-3 py-2 border-top border-secondary text-center">
         <small class="text-white-50">
             Wersja: <span class="badge bg-secondary">v@(appVersion)</span>
         </small>
     </div>
 
 </div>
+
+<!-- Responsywne reguły CSS -->
+<style>
+    /* Na komputerach (Desktop >= 641px) */
+    @@media (min-width: 641px) {
+        .mobile-nav-spacer {
+            display: none !important;
+        }
+        .nav-scrollable {
+            display: flex !important;
+            flex-direction: column !important;
+            height: calc(100vh - 3.5rem) !important;
+        }
+        .nav-footer {
+            margin-top: auto !important;
+        }
+    }
+
+    /* Na telefonach (Mobile 641px) */
+    @@media (max-width: 640.98px) {
+        /* Odstęp na samej górze pod przyklejony pasek */
+        .mobile-nav-spacer {
+            height: 3.5rem !important;
+            display: block !important;
+        }
+
+        /* Górny pasek z logo na stałe przyklejony do góry ekranu */
+        .top-row.navbar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 3.5rem !important;
+            z-index: 1050 !important;
+            background: linear-gradient(180deg, rgb(5, 39, 103) 0%, rgb(18, 26, 75) 100%) !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5) !important;
+        }
+
+        /* Przycisk burger menu */
+        .navbar-toggler {
+            position: fixed !important;
+            top: 0.5rem !important;
+            right: 1rem !important;
+            z-index: 1060 !important;
+        }
+
+        /* Rozwinięte menu: dopasowuje się do wysokości treści z zaokrąglonym dołem */
+        .nav-scrollable {
+            position: fixed !important;
+            top: 3.5rem !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: auto !important;
+            max-height: calc(85vh - 3.5rem) !important; /* Maksymalnie 85% ekranu na małych ekranach */
+            overflow-y: auto !important;
+            z-index: 1045 !important;
+            background: linear-gradient(180deg, rgb(18, 26, 75) 0%, #3a0647 100%) !important;
+            box-shadow: 0 25px 40px rgba(0, 0, 0, 0.7) !important;
+            border-bottom-left-radius: 1.25rem !important;
+            border-bottom-right-radius: 1.25rem !important;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.15) !important;
+        }
+
+        .nav-footer {
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+    }
+</style>
 
 @code {
     private string appVersion = "1.0.0";
