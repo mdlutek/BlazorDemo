@@ -18,6 +18,23 @@
     <Routes />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+
+    <script>
+        // Pokazuj pasek podczas nawigacji Enhanced Navigation
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && link.href && !link.target && !link.hasAttribute('download')) {
+                const bar = document.getElementById('top-loading-bar');
+                if (bar) bar.style.display = 'block';
+            }
+        });
+
+        // Ukryj pasek po załadowaniu nowej strony
+        Blazor.addEventListener('enhancedload', function() {
+            const bar = document.getElementById('top-loading-bar');
+            if (bar) bar.style.display = 'none';
+        });
+    </script>
 </body>
 
 </html>

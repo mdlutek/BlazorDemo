@@ -6,8 +6,13 @@
     </div>
 
     <main>
+        <!-- Cienki pasek postępu ładowania u samej góry -->
+        <div id="top-loading-bar" class="loading-progress-bar"></div>
+
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <a href="https://github.com/mdlutek/BlazorDemo" target="_blank" class="text-decoration-none text-muted small">
+                ⭐ GitHub Repository
+            </a>
         </div>
 
         <article class="content px-4">
@@ -16,8 +21,38 @@
     </main>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
+<style>
+    /* Pasek ładowania w stylu YouTube/GitHub */
+    .loading-progress-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #0d6efd, #0dcaf0, #00ED64);
+        z-index: 9999;
+        display: none;
+        animation: progress-indeterminate 1.2s infinite ease-in-out;
+    }
+
+    /* Animacja przesuwania paska */
+    @@keyframes progress-indeterminate {
+        0% {
+            transform: translateX(-100%);
+        }
+
+        50% {
+            transform: translateX(0);
+        }
+
+        100% {
+            transform: translateX(100%);
+        }
+    }
+</style>
+
+<div id="blazor-error-ui">
     An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
 </div>
