@@ -1,6 +1,4 @@
-﻿@using BlazorDemoApp.Client
-
-<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="new[] { typeof(BlazorDemoApp.Client._Imports).Assembly }">
+﻿<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="new[] { typeof(BlazorDemoApp.Client._Imports).Assembly }">
     <Found Context="routeData">
         <RouteView RouteData="routeData" DefaultLayout="typeof(BlazorDemoApp.Client.Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />

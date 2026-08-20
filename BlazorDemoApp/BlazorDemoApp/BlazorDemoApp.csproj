@@ -14,4 +14,53 @@
     <PackageReference Include="MongoDB.Driver" Version="3.11.0" />
   </ItemGroup>
 
+  <!-- Zadanie tylko do ODCZYTU (nie zwiększa licznika po raz drugi) -->
+  <UsingTask TaskName="ReadDailyVersion"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <CounterFile ParameterType="System.String" Required="true" />
+      <ResultVersion ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          DateTime now = DateTime.UtcNow;
+          string todayStr = now.ToString("yyyyMMdd");
+          int counter = 1;
+
+          if (File.Exists(CounterFile))
+          {
+              string content = File.ReadAllText(CounterFile).Trim();
+              string[] parts = content.Split(':');
+              if (parts.Length == 2 && parts[0] == todayStr && int.TryParse(parts[1], out int lastCounter))
+              {
+                  counter = lastCounter; // TYLKO ODCZYTUJEMY
+              }
+          }
+
+          string yyMM = now.ToString("yyMM");
+          int dd = now.Day;
+          int revision = dd * 1000 + counter;
+
+          ResultVersion = "1.0." + yyMM + "." + revision;
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="GenerateDailyVersion" BeforeTargets="BeforeCompile;CoreCompile;GetAssemblyVersion;GenerateAssemblyInfo">
+    <ReadDailyVersion CounterFile="$(MSBuildProjectDirectory)\.build_counter.txt">
+      <Output TaskParameter="ResultVersion" PropertyName="Version" />
+    </ReadDailyVersion>
+
+    <PropertyGroup>
+      <AssemblyVersion>$(Version)</AssemblyVersion>
+      <FileVersion>$(Version)</FileVersion>
+      <InformationalVersion>$(Version)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
+
 </Project>

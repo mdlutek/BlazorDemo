@@ -6,8 +6,11 @@
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
+<!-- Kontener menu rozciągnięty na całą wysokość ekranu -->
+<div class="nav-scrollable d-flex flex-column" style="height: calc(100vh - 3.5rem);">
+
+    <!-- Elementy nawigacji (rozciągają się do góry) -->
+    <nav class="flex-column nav">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
@@ -16,7 +19,6 @@
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="mongodb">
-                <!-- Oryginalny listek MongoDB -->
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="me-2 flex-shrink-0 text-success" viewBox="0 0 24 24">
                     <path d="M17.193 9.555c-1.264-5.29-4.24-8.03-4.572-8.324a.65.65 0 0 0-.84 0c-.333.295-3.309 3.034-4.573 8.324-1.442 6.027.697 10.384 4.542 13.315.148.113.34.13.504.048.165-.083.272-.25.278-.435l.08-2.673c0-.02-.008-.04-.022-.054-.36-.35-.86-.883-1.077-1.467-.23-.62-.25-1.3-.06-1.928.18-.598.57-1.12 1.1-1.47a3.42 3.42 0 0 1 1.838-.528c.67 0 1.32.185 1.874.528.53.35.92.872 1.1 1.47.19.628.17 1.308-.06 1.928-.217.584-.717 1.117-1.077 1.467-.014.014-.022.034-.022.054l.08 2.673c.006.185.113.352.278.435.164.082.356.065.504-.048 3.845-2.93 5.984-7.288 4.542-13.315z" />
                 </svg>
@@ -32,7 +34,7 @@
                 </svg>
                 <span>FizzBuzz</span>
             </NavLink>
-        </div>
+        </div>        
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="counter">
@@ -46,5 +48,27 @@
             </NavLink>
         </div>
     </nav>
+
+    <!-- Stopka z wersją wypchnięta na sam dół (mt-auto) -->
+    <div class="px-3 py-3 border-top border-secondary text-center mt-auto">
+        <small class="text-white-50">
+            Wersja: <span class="badge bg-secondary">v@(appVersion)</span>
+        </small>
+    </div>
+
 </div>
 
+
+@code {
+    private string appVersion = "1.0.0";
+
+    protected override void OnInitialized()
+    {
+        var version = typeof(NavMenu).Assembly.GetName().Version;
+        if (version != null)
+        {
+            // Wyświetli np. "1.0.0" lub "1.0.2608.20"
+            appVersion = $"{version}";
+        }
+    }
+}
