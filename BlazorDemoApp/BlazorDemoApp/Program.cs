@@ -2,6 +2,7 @@ using BlazorDemoApp.Client.Pages;
 using BlazorDemoApp.Components;
 using BlazorDemoApp.Data;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,12 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("AzureSqlDb")));
+
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("MongoDb");
+    return new MongoClient(connectionString);
+});
 
 var app = builder.Build();
 

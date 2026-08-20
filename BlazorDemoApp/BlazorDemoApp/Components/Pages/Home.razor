@@ -98,7 +98,7 @@
 
                     <!-- Prawa strona: Data + Przycisk usuwania (nigdy się nie skurczą) -->
                     <div class="d-flex align-items-center gap-2 flex-shrink-0">
-                        <small class="text-muted text-nowrap">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
+                        <small class="text-muted text-nowrap">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</small>
                         <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteTask(item.Id)" title="Usuń z bazy">
                             Usuń
                         </button>
