@@ -1,231 +1,148 @@
 ﻿@page "/"
-@using BlazorDemoApp.Models
-@using BlazorDemoApp.Data
-@using Microsoft.EntityFrameworkCore
-@inject IDbContextFactory<AppDbContext> DbFactory
-@inject ILogger<Home> Logger
-@rendermode InteractiveServer
 
-<PageTitle>Azure Blazor Demo</PageTitle>
+<PageTitle>Azure & Cloud Showcase - Blazor Demo</PageTitle>
 
-<div class="container mt-4">
-    <!-- Górny pasek: Tytuł + Informacja o architekturze + Przycisk GitHub -->
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-        <div>
-            <h1 class="mb-1">🚀 Blazor + Azure SQL Demo</h1>
-            <p class="text-muted mb-1">
-                Aplikacja hostowana na <strong>Azure App Service</strong>, dane w <strong>Azure SQL Database</strong>.
-            </p>
-            <p class="text-secondary small mb-0">
-                🧹 <em>Wszystkie wpisy są automatycznie kasowane raz na dobę (o północy UTC) przez bezserwerową funkcję <strong>Azure Functions (Timer Trigger)</strong>.</em>
-            </p>
-        </div>
-
-        <!-- Przycisk GitHub -->
-        <div>
-            <a href="https://github.com/mdlutek/BlazorDemo"
-               target="_blank"
-               rel="noopener noreferrer"
-               class="btn btn-dark d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8" />
-                </svg>
-                <span>Kod źródłowy na GitHub</span>
-            </a>
-        </div>
-    </div>
-
-    <hr />
-
-    <!-- Formularz dodawania zadań -->
-    <div class="row mb-3">
-        <div class="col-md-8 col-lg-6">
-            <div class="input-group">
-                <input type="text"
-                       class="form-control"
-                       placeholder="Wpisz nowe zadanie..."
-                       @bind="newTaskTitle"
-                       @bind:event="oninput"
-                       @onkeyup="HandleKeyUp"
-                       maxlength="200" />
-                <button class="btn btn-primary" @onclick="AddTask" disabled="@(tasks != null && tasks.Count >= 10)">
-                    Dodaj do bazy
-                </button>
+<div class="container mt-4 mb-5">
+    <!-- Hero Header -->
+    <div class="p-4 p-md-5 mb-4 rounded-3 bg-light border shadow-sm">
+        <div class="container-fluid py-2">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <h1 class="display-5 fw-bold text-primary">🚀 Cloud & Full-Stack Demo</h1>
+                    <p class="col-md-9 fs-5 text-muted">
+                        Aplikacja demonstracyjna prezentująca architekturę mikroserwisów i chmury Microsoft Azure w ekosystemie <strong>.NET / Blazor</strong>.
+                    </p>
+                </div>
+                <a href="https://github.com/mdlutek/BlazorDemo"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="btn btn-dark btn-lg d-inline-flex align-items-center gap-2 shadow">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8" />
+                    </svg>
+                    <span>Zobacz na GitHub</span>
+                </a>
             </div>
-            <small class="text-muted mt-1 d-block">
-                Liczba zadań: @(tasks?.Count ?? 0) / 10 (limit wersji demo)
-            </small>
+
+            <!-- Tagi Technologiczne -->
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <span class="badge bg-primary">Blazor Web App</span>
+                <span class="badge bg-info text-dark">Azure App Service (Linux)</span>
+                <span class="badge bg-primary">Azure SQL Database</span>
+                <span class="badge bg-warning text-dark">Azure Functions (Timer Cron)</span>
+                <span class="badge bg-success">MongoDB Atlas (NoSQL)</span>
+                <span class="badge bg-secondary">Entity Framework Core</span>
+                <span class="badge bg-dark">WebAssembly</span>
+            </div>
         </div>
     </div>
 
-    <!-- Komunikat o błędzie / limicie -->
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-danger alert-dismissible fade show col-md-8 col-lg-6" role="alert">
-            <strong>Uwaga!</strong> @errorMessage
-            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
-        </div>
-    }
+    <!-- Kafelki Modułów Aplikacji -->
+    <h3 class="mb-3 fw-bold">Moduły demonstracyjne</h3>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-5">
 
-    <!-- Lista zadań pobrana z bazy Azure SQL -->
-    @if (tasks == null)
-    {
-        <p><em>Ładowanie danych z chmury Azure...</em></p>
-    }
-    else if (!tasks.Any())
-    {
-        <div class="alert alert-info col-md-8 col-lg-6">
-            Brak zadań w bazie. Wpisz coś powyżej i kliknij „Dodaj do bazy”!
-        </div>
-    }
-    else
-    {
-        <ul class="list-group col-md-8 col-lg-6">
-            @foreach (var item in tasks)
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center shadow-sm mb-2 p-2 rounded">
-
-                    <!-- Lewa strona: Checkbox + Tytuł (z automatycznym łamaniem tekstu) -->
-                    <div class="d-flex align-items-center flex-grow-1 me-3" style="min-width: 0;">
-                        <input type="checkbox"
-                               class="form-check-input me-3 flex-shrink-0"
-                               checked="@item.IsCompleted"
-                               @onchange="() => ToggleTask(item)" />
-                        <span class="text-break" style="@(item.IsCompleted ? "text-decoration: line-through; color: #6c757d;" : "")">
-                            @item.Title
-                        </span>
+        <!-- Karta 1: ToDo SQL -->
+        <div class="col">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="card-title text-primary mb-0">📝 ToDo List</h4>
+                            <span class="badge bg-primary">Azure SQL</span>
+                        </div>
+                        <p class="card-text text-muted">
+                            Zarządzanie zadaniami oparte o relacyjną bazę <strong>Azure SQL</strong> i <strong>Entity Framework Core</strong>. Dane czyszczone są raz na dobę przez <strong>Azure Functions</strong>.
+                        </p>
                     </div>
+                    <a href="todo" class="btn btn-outline-primary mt-3 w-100">Otwórz ToDo List &rarr;</a>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Prawa strona: Data + Przycisk usuwania (nigdy się nie skurczą) -->
-                    <div class="d-flex align-items-center gap-2 flex-shrink-0">
-                        <small class="text-muted text-nowrap">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</small>
-                        <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteTask(item.Id)" title="Usuń z bazy">
-                            Usuń
-                        </button>
+        <!-- Karta 2: MongoDB -->
+        <div class="col">
+            <div class="card h-100 shadow-sm border-success">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="card-title text-success mb-0">🍃 MongoDB NoSQL</h4>
+                            <span class="badge bg-success">MongoDB Atlas</span>
+                        </div>
+                        <p class="card-text text-muted">
+                            Katalog produktów w nierelacyjnej bazie dokumentowej hostowanej w chmurze <strong>MongoDB Atlas (Azure)</strong>. Pokazuje obsługę zagnieżdżonych tablic i dokumentów BSON/JSON.
+                        </p>
                     </div>
+                    <a href="mongodb" class="btn btn-outline-success mt-3 w-100">Otwórz MongoDB &rarr;</a>
+                </div>
+            </div>
+        </div>
 
-                </li>
-            }
-        </ul>
-    }
+        <!-- Karta 3: FizzBuzz -->
+        <div class="col">
+            <div class="card h-100 shadow-sm border-info">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="card-title text-info mb-0">🔢 FizzBuzz</h4>
+                            <span class="badge bg-info text-dark">WebAssembly</span>
+                        </div>
+                        <p class="card-text text-muted">
+                            Algorytm działający w 100% po stronie przeglądarki klienta (<strong>Blazor WebAssembly</strong>) z zerowym narzutem sieciowym na serwer w chmurze.
+                        </p>
+                    </div>
+                    <a href="fizzbuzz" class="btn btn-outline-info mt-3 w-100">Otwórz FizzBuzz &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Karta 4: Counter -->
+        <div class="col">
+            <div class="card h-100 shadow-sm border-secondary">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="card-title text-secondary mb-0">⏱️ Counter</h4>
+                            <span class="badge bg-secondary">W budowie</span>
+                        </div>
+                        <p class="card-text text-muted">
+                            Komponent demonstracyjny do zarządzania stanem komponentów w Blazorze.
+                        </p>
+                    </div>
+                    <a href="counter" class="btn btn-outline-secondary mt-3 w-100">Zobacz Counter &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Karta 5: Weather -->
+        <div class="col">
+            <div class="card h-100 shadow-sm border-secondary">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="card-title text-secondary mb-0">⛅ Weather</h4>
+                            <span class="badge bg-secondary">W budowie</span>
+                        </div>
+                        <p class="card-text text-muted">
+                            Pobieranie i strumieniowanie danych pogodowych z zewnętrznych usług API.
+                        </p>
+                    </div>
+                    <a href="weather" class="btn btn-outline-secondary mt-3 w-100">Zobacz Weather &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Architektura Chmurowa -->
+    <div class="card shadow-sm border-0 bg-light p-3">
+        <div class="card-body">
+            <h4 class="fw-bold mb-3">☁️ Architektura środowiska chmurowego</h4>
+            <ul class="mb-0 text-muted">
+                <li><strong>Frontend & Backend:</strong> Hosting w usłudze <em>Azure App Service (Linux, Plan F1)</em> spięty z własną subdomeną <code>blazordemo.md-dev.net.pl</code>.</li>
+                <li><strong>Relacyjna Baza Danych:</strong> <em>Azure SQL Database (Warstwa Basic)</em> w regionie <code>Poland Central</code> z kontrolą dostępu przez Firewall.</li>
+                <li><strong>Bezserwerowy Cron Job:</strong> <em>Azure Functions (Timer Trigger)</em> wykonujący codzienne automatyczne czyszczenie bazy zadań.</li>
+                <li><strong>Baza NoSQL:</strong> Klaster <em>MongoDB Atlas (M0 Sandbox)</em> postawiony w chmurze Microsoft Azure w Europie.</li>
+            </ul>
+        </div>
+    </div>
 </div>
-
-@code {
-    private List<DemoTask>? tasks;
-    private string newTaskTitle = string.Empty;
-    private string errorMessage = string.Empty;
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadTasks();
-    }
-
-    private async Task LoadTasks()
-    {
-        try
-        {
-            using var context = await DbFactory.CreateDbContextAsync();
-            tasks = await context.DemoTasks.OrderByDescending(t => t.CreatedAt).ToListAsync();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Błąd podczas pobierania zadań z bazy Azure SQL");
-            errorMessage = "Nie udało się pobrać zadań z bazy danych.";
-            tasks = new List<DemoTask>();
-        }
-    }
-
-    private async Task AddTask()
-    {
-        errorMessage = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
-
-        try
-        {
-            using var context = await DbFactory.CreateDbContextAsync();
-
-            var currentCount = await context.DemoTasks.CountAsync();
-            if (currentCount >= 10)
-            {
-                errorMessage = "Osiągnięto limit 10 wpisów w bazie! Usuń wcześniejsze zadania, aby dodać nowe.";
-                return;
-            }
-
-            var task = new DemoTask
-            {
-                Title = newTaskTitle.Trim(),
-                IsCompleted = false,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            context.DemoTasks.Add(task);
-            await context.SaveChangesAsync();
-
-            newTaskTitle = string.Empty;
-            await LoadTasks();
-        }
-        catch (DbUpdateException ex)
-        {
-            Logger.LogError(ex, "Błąd podczas zapisu zadania do bazy");
-            errorMessage = "Wystąpił błąd podczas zapisu do bazy danych.";
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Nieoczekiwany błąd w AddTask");
-            errorMessage = "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
-        }
-    }
-
-    private async Task ToggleTask(DemoTask item)
-    {
-        errorMessage = string.Empty;
-
-        try
-        {
-            using var context = await DbFactory.CreateDbContextAsync();
-            var taskInDb = await context.DemoTasks.FindAsync(item.Id);
-            if (taskInDb != null)
-            {
-                taskInDb.IsCompleted = !taskInDb.IsCompleted;
-                await context.SaveChangesAsync();
-            }
-            await LoadTasks();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Błąd podczas aktualizacji zadania {TaskId}", item.Id);
-            errorMessage = "Nie udało się zaktualizować statusu zadania.";
-        }
-    }
-
-    private async Task DeleteTask(int taskId)
-    {
-        errorMessage = string.Empty;
-
-        try
-        {
-            using var context = await DbFactory.CreateDbContextAsync();
-            var taskInDb = await context.DemoTasks.FindAsync(taskId);
-            if (taskInDb != null)
-            {
-                context.DemoTasks.Remove(taskInDb);
-                await context.SaveChangesAsync();
-            }
-            await LoadTasks();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Błąd podczas usuwania zadania {TaskId}", taskId);
-            errorMessage = "Nie udało się usunąć zadania.";
-        }
-    }
-
-    private async Task HandleKeyUp(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await AddTask();
-        }
-    }
-}

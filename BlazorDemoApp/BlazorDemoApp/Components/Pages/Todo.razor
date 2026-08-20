@@ -1,0 +1,218 @@
+﻿@page "/todo"
+@using BlazorDemoApp.Models
+@using BlazorDemoApp.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject ILogger<Home> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Azure Blazor Demo</PageTitle>
+
+<div class="container mt-4">
+    <!-- Górny pasek: Tytuł + Informacja o architekturze + Przycisk GitHub -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+        <div>
+            <h1 class="mb-1">🚀 Blazor + Azure SQL Demo</h1>
+            <p class="text-muted mb-1">
+                Aplikacja hostowana na <strong>Azure App Service</strong>, dane w <strong>Azure SQL Database</strong>.
+            </p>
+            <p class="text-secondary small mb-0">
+                🧹 <em>Wszystkie wpisy są automatycznie kasowane raz na dobę (o północy UTC) przez bezserwerową funkcję <strong>Azure Functions (Timer Trigger)</strong>.</em>
+            </p>
+        </div>        
+    </div>
+
+    <hr />
+
+    <!-- Formularz dodawania zadań -->
+    <div class="row mb-3">
+        <div class="col-md-8 col-lg-6">
+            <div class="input-group">
+                <input type="text"
+                       class="form-control"
+                       placeholder="Wpisz nowe zadanie..."
+                       @bind="newTaskTitle"
+                       @bind:event="oninput"
+                       @onkeyup="HandleKeyUp"
+                       maxlength="200" />
+                <button class="btn btn-primary" @onclick="AddTask" disabled="@(tasks != null && tasks.Count >= 10)">
+                    Dodaj do bazy
+                </button>
+            </div>
+            <small class="text-muted mt-1 d-block">
+                Liczba zadań: @(tasks?.Count ?? 0) / 10 (limit wersji demo)
+            </small>
+        </div>
+    </div>
+
+    <!-- Komunikat o błędzie / limicie -->
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show col-md-8 col-lg-6" role="alert">
+            <strong>Uwaga!</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Lista zadań pobrana z bazy Azure SQL -->
+    @if (tasks == null)
+    {
+        <p><em>Ładowanie danych z chmury Azure...</em></p>
+    }
+    else if (!tasks.Any())
+    {
+        <div class="alert alert-info col-md-8 col-lg-6">
+            Brak zadań w bazie. Wpisz coś powyżej i kliknij „Dodaj do bazy”!
+        </div>
+    }
+    else
+    {
+        <ul class="list-group col-md-8 col-lg-6">
+            @foreach (var item in tasks)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center shadow-sm mb-2 p-2 rounded">
+
+                    <!-- Lewa strona: Checkbox + Tytuł (z automatycznym łamaniem tekstu) -->
+                    <div class="d-flex align-items-center flex-grow-1 me-3" style="min-width: 0;">
+                        <input type="checkbox"
+                               class="form-check-input me-3 flex-shrink-0"
+                               checked="@item.IsCompleted"
+                               @onchange="() => ToggleTask(item)" />
+                        <span class="text-break" style="@(item.IsCompleted ? "text-decoration: line-through; color: #6c757d;" : "")">
+                            @item.Title
+                        </span>
+                    </div>
+
+                    <!-- Prawa strona: Data + Przycisk usuwania (nigdy się nie skurczą) -->
+                    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                        <small class="text-muted text-nowrap">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</small>
+                        <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteTask(item.Id)" title="Usuń z bazy">
+                            Usuń
+                        </button>
+                    </div>
+
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private List<DemoTask>? tasks;
+    private string newTaskTitle = string.Empty;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTasks();
+    }
+
+    private async Task LoadTasks()
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            tasks = await context.DemoTasks.OrderByDescending(t => t.CreatedAt).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas pobierania zadań z bazy Azure SQL");
+            errorMessage = "Nie udało się pobrać zadań z bazy danych.";
+            tasks = new List<DemoTask>();
+        }
+    }
+
+    private async Task AddTask()
+    {
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+
+            var currentCount = await context.DemoTasks.CountAsync();
+            if (currentCount >= 10)
+            {
+                errorMessage = "Osiągnięto limit 10 wpisów w bazie! Usuń wcześniejsze zadania, aby dodać nowe.";
+                return;
+            }
+
+            var task = new DemoTask
+            {
+                Title = newTaskTitle.Trim(),
+                IsCompleted = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            context.DemoTasks.Add(task);
+            await context.SaveChangesAsync();
+
+            newTaskTitle = string.Empty;
+            await LoadTasks();
+        }
+        catch (DbUpdateException ex)
+        {
+            Logger.LogError(ex, "Błąd podczas zapisu zadania do bazy");
+            errorMessage = "Wystąpił błąd podczas zapisu do bazy danych.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Nieoczekiwany błąd w AddTask");
+            errorMessage = "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
+        }
+    }
+
+    private async Task ToggleTask(DemoTask item)
+    {
+        errorMessage = string.Empty;
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            var taskInDb = await context.DemoTasks.FindAsync(item.Id);
+            if (taskInDb != null)
+            {
+                taskInDb.IsCompleted = !taskInDb.IsCompleted;
+                await context.SaveChangesAsync();
+            }
+            await LoadTasks();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas aktualizacji zadania {TaskId}", item.Id);
+            errorMessage = "Nie udało się zaktualizować statusu zadania.";
+        }
+    }
+
+    private async Task DeleteTask(int taskId)
+    {
+        errorMessage = string.Empty;
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            var taskInDb = await context.DemoTasks.FindAsync(taskId);
+            if (taskInDb != null)
+            {
+                context.DemoTasks.Remove(taskInDb);
+                await context.SaveChangesAsync();
+            }
+            await LoadTasks();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas usuwania zadania {TaskId}", taskId);
+            errorMessage = "Nie udało się usunąć zadania.";
+        }
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AddTask();
+        }
+    }
+}
