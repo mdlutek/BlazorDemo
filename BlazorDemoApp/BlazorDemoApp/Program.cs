@@ -4,6 +4,7 @@ using BlazorDemoApp.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Azure.Cosmos;
 using MongoDB.Driver;
+using BlazorDemoApp.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +34,10 @@ builder.Services.AddSingleton<CosmosClient>(sp =>
         }
     });
 });
+
+// Rejestracja bazy PostgreSQL (Neon Serverless)
+builder.Services.AddDbContextFactory<PostgresDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("PostgresDb")));
 
 var app = builder.Build();
 

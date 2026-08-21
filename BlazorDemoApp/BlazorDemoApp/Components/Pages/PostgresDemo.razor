@@ -1,0 +1,259 @@
+﻿@page "/postgres"
+@attribute [StreamRendering]
+@using BlazorDemoApp.Models
+@using BlazorDemoApp.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<PostgresDbContext> DbFactory
+@inject ILogger<PostgresDemo> Logger
+@rendermode InteractiveServer
+
+<PageTitle>PostgreSQL Demo</PageTitle>
+
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div>
+            <h1>🐘 PostgreSQL (Serverless & JSONB)</h1>
+            <p class="text-muted mb-0">
+                Baza relacyjna z obsługą <strong>natywnych tablic (text[])</strong> oraz <strong>kolumn JSONB</strong> hostowana na Neon.tech.
+            </p>
+        </div>
+        <span class="badge bg-primary fs-6 px-3 py-2">SQL + JSONB Hybrid</span>
+    </div>
+
+    <hr />
+
+    <!-- Formularz dodawania wpisu z metadanymi JSONB -->
+    <div class="card shadow-sm mb-4 col-md-8 col-lg-6">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Dodaj wpis do bazy PostgreSQL</h5>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @errorMessage
+                    <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+                </div>
+            }
+
+            <div class="mb-2">
+                <label class="form-label small text-muted">Tytuł wpisu (maks. 50 znaków):</label>
+                <input type="text" class="form-control" placeholder="np. Indeksowanie kolumn JSONB" @bind="newTitle" maxlength="50" />
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label small text-muted">Kategoria:</label>
+                <select class="form-select" @bind="newCategory">
+                    <option value="PostgreSQL">PostgreSQL</option>
+                    <option value="C# / .NET">C# / .NET</option>
+                    <option value="Architektura">Architektura</option>
+                    <option value="Chmura">Chmura</option>
+                </select>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label small text-muted">Tagi (kolumna tablicowa text[]):</label>
+                <input type="text" class="form-control" placeholder="np. postgres, jsonb, sql" @bind="tagsInput" maxlength="60" />
+            </div>
+
+            <!-- Pola trafiające do kolumny JSONB -->
+            <div class="p-3 mb-3 bg-light rounded border">
+                <h6 class="text-primary small fw-bold mb-2">📦 Pola kolumny JSONB (Metadata):</h6>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Autor:</label>
+                        <input type="text" class="form-control form-control-sm" @bind="newAuthor" maxlength="30" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Ocena (1-5 ⭐):</label>
+                        <input type="number" min="1" max="5" class="form-control form-control-sm" @bind="newRating" />
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" @onclick="AddItem" disabled="@(items != null && items.Count >= 10)">
+                Zapisz rekord w PostgreSQL
+            </button>
+            <small class="text-muted d-block mt-1">Liczba rekordów: @(items?.Count ?? 0) / 10</small>
+        </div>
+    </div>
+
+    <!-- Lista rekordów z Postgresa -->
+    <h3 class="mb-3">Wpisy w tabeli (zagnieżdżony JSONB):</h3>
+    @if (items == null)
+    {
+        <p><em>Ładowanie danych z bazy PostgreSQL...</em></p>
+    }
+    else if (!items.Any())
+    {
+        <div class="alert alert-info col-md-8 col-lg-6">
+            Brak wpisów w bazie PostgreSQL. Dodaj pierwszy rekord powyżej!
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var item in items)
+            {
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100 shadow-sm border-primary">
+                        <div class="card-body d-flex flex-column justify-content-between">
+                            <div>
+                                <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                                    <h5 class="card-title text-primary mb-0 text-break" style="min-width: 0;">
+                                        @item.Title
+                                    </h5>
+                                    <span class="badge bg-secondary flex-shrink-0">ID: @item.Id</span>
+                                </div>
+
+                                <div class="mb-2">
+                                    <span class="badge bg-light text-dark border">📁 @item.Category</span>
+                                    <span class="badge bg-warning text-dark">⭐ @item.Metadata.Rating / 5</span>
+                                </div>
+
+                                <!-- Tagi z tablicy text[] -->
+                                <div class="mb-2 d-flex flex-wrap gap-1">
+                                    @foreach (var tag in item.Tags)
+                                    {
+                                        <span class="badge bg-info text-dark">#@tag</span>
+                                    }
+                                </div>
+
+                                <!-- Odczyt z kolumny JSONB -->
+                                <div class="p-2 bg-light rounded small text-muted mb-2 border">
+                                    <div>👤 Autor: <strong>@item.Metadata.Author</strong></div>
+                                    <div>🌐 Środowisko: <code>@item.Metadata.Environment</code></div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                                <small class="text-muted text-nowrap">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
+                                <button class="btn btn-outline-danger btn-sm flex-shrink-0" @onclick="() => DeleteItem(item.Id)">
+                                    Usuń
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<KnowledgeItem>? items;
+    private string newTitle = string.Empty;
+    private string newCategory = "PostgreSQL";
+    private string tagsInput = string.Empty;
+    private string newAuthor = "Mateusz";
+    private int newRating = 5;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            // Automatyczne utworzenie tabeli jeśli nie istnieje
+            await context.Database.EnsureCreatedAsync();
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd inicjalizacji bazy PostgreSQL");
+            errorMessage = "Nie udało się połączyć z bazą PostgreSQL.";
+            items = new List<KnowledgeItem>();
+        }
+    }
+
+    private async Task LoadItems()
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            items = await context.KnowledgeItems.OrderByDescending(k => k.CreatedAt).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd pobierania danych z PostgreSQL");
+            errorMessage = "Błąd pobierania danych.";
+            items = new List<KnowledgeItem>();
+        }
+    }
+
+    private async Task AddItem()
+    {
+        errorMessage = string.Empty;
+
+        // Walidacja pustego tytułu z czytelnym komunikatem dla użytkownika
+        if (string.IsNullOrWhiteSpace(newTitle))
+        {
+            errorMessage = "Pole „Tytuł wpisu” jest wymagane! Wpisz tytuł przed zapisaniem.";
+            return;
+        }
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            var count = await context.KnowledgeItems.CountAsync();
+            if (count >= 10)
+            {
+                errorMessage = "Osiągnięto limit 10 wpisów demo! Usuń wcześniejsze wpisy.";
+                return;
+            }
+
+            var tagList = tagsInput
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(t => t.Length > 20 ? t.Substring(0, 20) : t)
+                .Take(5)
+                .ToList();
+
+            var item = new KnowledgeItem
+            {
+                Title = newTitle.Trim(),
+                Category = newCategory,
+                Tags = tagList,
+                Metadata = new ItemMetadata
+                {
+                    Author = string.IsNullOrWhiteSpace(newAuthor) ? "Anonim" : newAuthor.Trim(),
+                    Rating = Math.Clamp(newRating, 1, 5),
+                    Environment = "Neon Serverless",
+                    IsVerified = true
+                },
+                CreatedAt = DateTime.UtcNow
+            };
+
+            context.KnowledgeItems.Add(item);
+            await context.SaveChangesAsync();
+
+            newTitle = string.Empty;
+            tagsInput = string.Empty;
+
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas dodawania rekordu do PostgreSQL");
+            errorMessage = "Wystąpił błąd podczas zapisu w PostgreSQL.";
+        }
+    }
+
+    private async Task DeleteItem(int id)
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            var itemInDb = await context.KnowledgeItems.FindAsync(id);
+            if (itemInDb != null)
+            {
+                context.KnowledgeItems.Remove(itemInDb);
+                await context.SaveChangesAsync();
+            }
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd usuwania wpisu z PostgreSQL");
+            errorMessage = "Nie udało się usunąć wpisu.";
+        }
+    }
+}
