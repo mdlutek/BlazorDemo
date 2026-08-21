@@ -30,6 +30,7 @@
                 <span class="badge bg-primary">Blazor Web App</span>
                 <span class="badge bg-info text-dark">Azure App Service (Linux)</span>
                 <span class="badge bg-primary">Azure SQL Database</span>
+                <span class="badge bg-info text-dark">Azure Cosmos DB (NoSQL)</span>
                 <span class="badge bg-warning text-dark">Azure Functions (Timer Cron)</span>
                 <span class="badge bg-success">MongoDB Atlas (NoSQL)</span>
                 <span class="badge bg-secondary">Entity Framework Core</span>
@@ -60,7 +61,25 @@
             </div>
         </div>
 
-        <!-- Karta 2: MongoDB -->
+        <!-- Karta 2: Cosmos DB -->
+        <div class="col">
+            <div class="card h-100 shadow-sm border-info">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="card-title text-info mb-0">🪐 Cosmos DB</h4>
+                            <span class="badge bg-info text-dark">Azure Cosmos DB</span>
+                        </div>
+                        <p class="card-text text-muted">
+                            Dziennik wpisów w natywnej bazie dokumentowej <strong>Azure Cosmos DB for NoSQL</strong> z obsługą <strong>Klucza Partycji (/category)</strong> i zapytaniami SQL w JSON.
+                        </p>
+                    </div>
+                    <a href="cosmosdb" class="btn btn-outline-info mt-3 w-100">Otwórz Cosmos DB &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Karta 3: MongoDB -->
         <div class="col">
             <div class="card h-100 shadow-sm border-success">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -78,25 +97,25 @@
             </div>
         </div>
 
-        <!-- Karta 3: FizzBuzz -->
+        <!-- Karta 4: FizzBuzz -->
         <div class="col">
-            <div class="card h-100 shadow-sm border-info">
+            <div class="card h-100 shadow-sm border-secondary">
                 <div class="card-body d-flex flex-column justify-content-between">
                     <div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h4 class="card-title text-info mb-0">🔢 FizzBuzz</h4>
-                            <span class="badge bg-info text-dark">WebAssembly</span>
+                            <h4 class="card-title text-secondary mb-0">🔢 FizzBuzz</h4>
+                            <span class="badge bg-dark">WebAssembly</span>
                         </div>
                         <p class="card-text text-muted">
                             Algorytm działający w 100% po stronie przeglądarki klienta (<strong>Blazor WebAssembly</strong>) z zerowym narzutem sieciowym na serwer w chmurze.
                         </p>
                     </div>
-                    <a href="fizzbuzz" class="btn btn-outline-info mt-3 w-100">Otwórz FizzBuzz &rarr;</a>
+                    <a href="fizzbuzz" class="btn btn-outline-secondary mt-3 w-100">Otwórz FizzBuzz &rarr;</a>
                 </div>
             </div>
         </div>
 
-        <!-- Karta 4: Counter -->
+        <!-- Karta 5: Counter -->
         <div class="col">
             <div class="card h-100 shadow-sm border-secondary">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -114,7 +133,7 @@
             </div>
         </div>
 
-        <!-- Karta 5: Weather -->
+        <!-- Karta 6: Weather -->
         <div class="col">
             <div class="card h-100 shadow-sm border-secondary">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -141,8 +160,9 @@
             <ul class="mb-0 text-muted">
                 <li><strong>Frontend & Backend:</strong> Hosting w usłudze <em>Azure App Service (Linux, Plan F1)</em> spięty z własną subdomeną <code>blazordemo.md-dev.net.pl</code>.</li>
                 <li><strong>Relacyjna Baza Danych:</strong> <em>Azure SQL Database (Warstwa Basic)</em> w regionie <code>Poland Central</code> z kontrolą dostępu przez Firewall.</li>
+                <li><strong>Natywna Baza NoSQL:</strong> <em>Azure Cosmos DB for NoSQL (Free Tier)</em> z modelem partycjonowania <code>/category</code>.</li>
                 <li><strong>Bezserwerowy Cron Job:</strong> <em>Azure Functions (Timer Trigger)</em> wykonujący codzienne automatyczne czyszczenie bazy zadań.</li>
-                <li><strong>Baza NoSQL:</strong> Klaster <em>MongoDB Atlas (M0 Sandbox)</em> postawiony w chmurze Microsoft Azure w Europie.</li>
+                <li><strong>Baza NoSQL (Dokumentowa):</strong> Klaster <em>MongoDB Atlas (M0 Sandbox)</em> w chmurze Microsoft Azure.</li>
             </ul>
         </div>
     </div>

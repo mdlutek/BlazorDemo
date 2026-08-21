@@ -2,6 +2,7 @@ using BlazorDemoApp.Client.Pages;
 using BlazorDemoApp.Components;
 using BlazorDemoApp.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Azure.Cosmos;
 using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,19 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var connectionString = builder.Configuration.GetConnectionString("MongoDb");
     return new MongoClient(connectionString);
+});
+
+// Rejestracja klienta Azure Cosmos DB
+builder.Services.AddSingleton<CosmosClient>(sp =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("CosmosDb");
+    return new CosmosClient(connectionString, new CosmosClientOptions
+    {
+        SerializerOptions = new CosmosSerializationOptions
+        {
+            PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+        }
+    });
 });
 
 var app = builder.Build();
