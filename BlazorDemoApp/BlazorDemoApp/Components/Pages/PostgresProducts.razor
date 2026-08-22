@@ -1,0 +1,433 @@
+﻿@page "/postgres/products"
+@attribute [StreamRendering]
+@using BlazorDemoApp.Models
+@using BlazorDemoApp.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<PostgresDbContext> DbFactory
+@inject ILogger<PostgresProducts> Logger
+@rendermode InteractiveServer
+
+<PageTitle>PostgreSQL Products CRUD</PageTitle>
+
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div>
+            <h1>📦 Zarządzanie Produktami (PostgreSQL)</h1>
+            <p class="text-muted mb-0">
+                Relacje PK/FK (Kategorie), tablice <strong>text[]</strong> oraz specyfikacja w kolumnie <strong>JSONB</strong>.
+            </p>
+        </div>
+        <span class="badge bg-primary fs-6 px-3 py-2">Relational & JSONB CRUD</span>
+    </div>
+
+    <hr />
+
+    <!-- Formularz Dodawania / Edycji Produktu -->
+    <div class="card shadow-sm mb-4 border-primary">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">@(isEditMode ? "✏️ Edycja Produktu" : "➕ Nowy Produkt")</h5>
+            @if (isEditMode)
+            {
+                <button class="btn btn-sm btn-light" @onclick="CancelEdit">Anuluj edycję</button>
+            }
+        </div>
+        <div class="card-body">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <strong>Błąd!</strong> @errorMessage
+                    <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <strong>Sukces!</strong> @successMessage
+                    <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+                </div>
+            }
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">Nazwa produktu *:</label>
+                    <input type="text" class="form-control" placeholder="np. Laptop Lenovo ThinkPad" @bind="formProduct.Name" maxlength="70" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Kod SKU *:</label>
+                    <input type="text" class="form-control" placeholder="np. LAP-LEN-T14" @bind="formProduct.Sku" maxlength="30" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Kategoria (Relacja FK) *:</label>
+                    <select class="form-select" @bind="formProduct.CategoryId">
+                        @if (categories != null)
+                        {
+                            @foreach (var cat in categories)
+                            {
+                                <option value="@cat.Id">@cat.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Cena (PLN) *:</label>
+                    <input type="number" step="0.01" min="0" max="999999" class="form-control" @bind="formProduct.Price" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Stan magazynowy (szt.) *:</label>
+                    <input type="number" min="0" max="10000" class="form-control" @bind="formProduct.StockQuantity" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">Tagi (tablica Postgresa text[] - po przecinku):</label>
+                    <input type="text" class="form-control" placeholder="np. laptop, lenovo, biznes, i7" @bind="tagsInput" />
+                </div>
+
+                <!-- Sekcja specyfikacji JSONB -->
+                <div class="col-12">
+                    <div class="p-3 bg-light rounded border">
+                        <h6 class="text-primary small fw-bold mb-2">⚙️ Specyfikacja techniczna (Kolumna JSONB):</h6>
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted">Procesor (CPU):</label>
+                                <input type="text" class="form-control form-control-sm" placeholder="np. Intel i7-13700H" @bind="formProduct.Specifications.Cpu" maxlength="30" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted">Pamięć RAM:</label>
+                                <input type="text" class="form-control form-control-sm" placeholder="np. 32GB DDR5" @bind="formProduct.Specifications.Ram" maxlength="20" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted">Kolor:</label>
+                                <input type="text" class="form-control form-control-sm" placeholder="np. Czarny mat" @bind="formProduct.Specifications.Color" maxlength="20" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted">Gwarancja:</label>
+                                <input type="text" class="form-control form-control-sm" placeholder="np. 36m On-Site" @bind="formProduct.Specifications.Warranty" maxlength="20" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 mt-3">
+                    <button class="btn btn-primary px-4" @onclick="SaveProduct" disabled="@(!isEditMode && products != null && products.Count >= 15)">
+                        @(isEditMode ? "💾 Zapisz zmiany w produkcie" : "➕ Dodaj produkt do bazy")
+                    </button>
+                    @if (isEditMode)
+                    {
+                        <button class="btn btn-outline-secondary ms-2" @onclick="CancelEdit">Anuluj</button>
+                    }
+                    <small class="text-muted ms-3">Liczba rekordów: @(products?.Count ?? 0) / 15 (limit demo)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Produktów -->
+    <h3 class="mb-3">Lista produktów w tabeli PostgreSQL:</h3>
+    @if (products == null)
+    {
+        <p><em>Ładowanie tabeli produktów z Neon PostgreSQL...</em></p>
+    }
+    else if (!products.Any())
+    {
+        <div class="alert alert-info">Brak produktów w bazie. Dodaj pierwszy produkt za pomocą powyższego formularza!</div>
+    }
+    else
+    {
+        <div class="table-responsive shadow-sm rounded">
+            <table class="table table-hover table-bordered align-middle mb-0 bg-white">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th>Nazwa & SKU</th>
+                        <th>Kategoria (FK)</th>
+                        <th>Cena</th>
+                        <th>Magazyn</th>
+                        <th>Tagi (text[])</th>
+                        <th>Specyfikacja (JSONB)</th>
+                        <th style="width: 150px;" class="text-center">Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var prod in products)
+                    {
+                        <tr>
+                            <td class="fw-bold text-muted">#@prod.Id</td>
+                            <td>
+                                <div class="fw-bold text-primary">@prod.Name</div>
+                                <small class="text-muted font-monospace">SKU: @prod.Sku</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">@(prod.Category?.Name ?? "ID: " + prod.CategoryId)</span>
+                            </td>
+                            <td class="fw-bold text-nowrap">@prod.Price.ToString("C")</td>
+                            <td>
+                                @if (prod.StockQuantity > 5)
+                                {
+                                    <span class="badge bg-success">@prod.StockQuantity szt.</span>
+                                }
+                                else if (prod.StockQuantity > 0)
+                                {
+                                    <span class="badge bg-warning text-dark">Niski: @prod.StockQuantity szt.</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Brak</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    @foreach (var tag in prod.Tags)
+                                    {
+                                        <span class="badge bg-light text-dark border">#@tag</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="small">
+                                    @if (!string.IsNullOrEmpty(prod.Specifications.Cpu))
+                                    {
+                                        <div>⚙️ CPU: <strong>@prod.Specifications.Cpu</strong></div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(prod.Specifications.Ram))
+                                    {
+                                        <div>💾 RAM: <strong>@prod.Specifications.Ram</strong></div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(prod.Specifications.Warranty))
+                                    {
+                                        <div class="text-muted">🛡️ Gwarancja: @prod.Specifications.Warranty</div>
+                                    }
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => StartEdit(prod)" title="Edytuj produkt">
+                                    ✏️ 
+                                </button>
+                                <!-- Przycisk przejścia do historii audytu -->
+                                <a href="postgres/products/@prod.Id/history" class="btn btn-outline-secondary btn-sm me-1" title="Historia zmian (Audit Log)">
+                                    📜
+                                </a>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteProduct(prod.Id)" title="Usuń z bazy">
+                                    🗑️
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PostgresProduct>? products;
+    private List<PostgresCategory>? categories;
+    private PostgresProduct formProduct = new();
+    private string tagsInput = string.Empty;
+    private bool isEditMode = false;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await EnsureSeedCategoriesAndLoad();
+    }
+
+    private async Task EnsureSeedCategoriesAndLoad()
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            await context.Database.EnsureCreatedAsync();
+
+            // Upewnij się, że są kategorie w bazie
+            if (!await context.Categories.AnyAsync())
+            {
+                context.Categories.AddRange(
+                    new PostgresCategory { Name = "Elektronika", Slug = "elektronika" },
+                    new PostgresCategory { Name = "Książki & Edukacja", Slug = "ksiazki-edukacja" },
+                    new PostgresCategory { Name = "Akcesoria Biurowe", Slug = "akcesoria-biurowe" }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            categories = await context.Categories.ToListAsync();
+            if (categories.Any() && formProduct.CategoryId == 0)
+            {
+                formProduct.CategoryId = categories.First().Id;
+            }
+
+            await LoadProducts();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas ładowania danych PostgreSQL");
+            errorMessage = "Nie udało się połączyć z bazą PostgreSQL.";
+            products = new List<PostgresProduct>();
+        }
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            products = await context.Products
+                .Include(p => p.Category)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd pobierania produktów");
+            errorMessage = "Błąd pobierania listy produktów.";
+        }
+    }
+
+    private async Task SaveProduct()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        // Walidacja formularza
+        if (string.IsNullOrWhiteSpace(formProduct.Name))
+        {
+            errorMessage = "Pole „Nazwa produktu” jest wymagane!";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(formProduct.Sku))
+        {
+            errorMessage = "Pole „Kod SKU” jest wymagane!";
+            return;
+        }
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+
+            var tagList = tagsInput
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(t => t.Length > 20 ? t.Substring(0, 20) : t)
+                .Take(5)
+                .ToList();
+
+            if (isEditMode)
+            {
+                // Tryb Edycji (UPDATE)
+                var existing = await context.Products.FindAsync(formProduct.Id);
+                if (existing != null)
+                {
+                    existing.Name = formProduct.Name.Trim();
+                    existing.Sku = formProduct.Sku.Trim().ToUpper();
+                    existing.CategoryId = formProduct.CategoryId;
+                    existing.Price = formProduct.Price;
+                    existing.StockQuantity = formProduct.StockQuantity;
+                    existing.Tags = tagList;
+                    existing.Specifications = formProduct.Specifications;
+
+                    await context.SaveChangesAsync();
+                    successMessage = "Produkt został zaktualizowany!";
+                }
+                CancelEdit();
+            }
+            else
+            {
+                // Tryb Dodawania (INSERT)
+                var count = await context.Products.CountAsync();
+                if (count >= 15)
+                {
+                    errorMessage = "Osiągnięto limit 15 produktów demo!";
+                    return;
+                }
+
+                var newProd = new PostgresProduct
+                {
+                    Name = formProduct.Name.Trim(),
+                    Sku = formProduct.Sku.Trim().ToUpper(),
+                    CategoryId = formProduct.CategoryId,
+                    Price = formProduct.Price,
+                    StockQuantity = formProduct.StockQuantity,
+                    Tags = tagList,
+                    Specifications = formProduct.Specifications,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                context.Products.Add(newProd);
+                await context.SaveChangesAsync();
+                successMessage = "Nowy produkt został dodany!";
+
+                ResetForm();
+            }
+
+            await LoadProducts();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd zapisu produktu do PostgreSQL");
+            errorMessage = "Wystąpił błąd zapisu w bazie danych. Upewnij się, że kod SKU jest unikalny!";
+        }
+    }
+
+    private void StartEdit(PostgresProduct prod)
+    {
+        isEditMode = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        formProduct = new PostgresProduct
+        {
+            Id = prod.Id,
+            Name = prod.Name,
+            Sku = prod.Sku,
+            CategoryId = prod.CategoryId,
+            Price = prod.Price,
+            StockQuantity = prod.StockQuantity,
+            Specifications = new ProductSpecs
+            {
+                Cpu = prod.Specifications.Cpu,
+                Ram = prod.Specifications.Ram,
+                Color = prod.Specifications.Color,
+                Warranty = prod.Specifications.Warranty
+            }
+        };
+
+        tagsInput = string.Join(", ", prod.Tags);
+    }
+
+    private void CancelEdit()
+    {
+        isEditMode = false;
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        formProduct = new PostgresProduct
+        {
+            CategoryId = categories?.FirstOrDefault()?.Id ?? 1,
+            Price = 0,
+            StockQuantity = 1
+        };
+        tagsInput = string.Empty;
+    }
+
+    private async Task DeleteProduct(int id)
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            var prod = await context.Products.FindAsync(id);
+            if (prod != null)
+            {
+                context.Products.Remove(prod);
+                await context.SaveChangesAsync();
+                successMessage = "Produkt został usunięty.";
+            }
+            await LoadProducts();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd usuwania produktu");
+            errorMessage = "Nie udało się usunąć produktu.";
+        }
+    }
+}

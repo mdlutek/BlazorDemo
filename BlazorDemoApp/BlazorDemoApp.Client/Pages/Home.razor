@@ -30,6 +30,7 @@
                 <span class="badge bg-primary">Blazor Web App</span>
                 <span class="badge bg-info text-dark">Azure App Service (Linux)</span>
                 <span class="badge bg-primary">Azure SQL Database</span>
+                <span class="badge bg-primary" style="background-color: #336791 !important;">PostgreSQL (Serverless & JSONB)</span>
                 <span class="badge bg-info text-dark">Azure Cosmos DB (NoSQL)</span>
                 <span class="badge bg-warning text-dark">Azure Functions (Timer Cron)</span>
                 <span class="badge bg-success">MongoDB Atlas (NoSQL)</span>
@@ -61,7 +62,28 @@
             </div>
         </div>
 
-        <!-- Karta 2: Cosmos DB -->
+        <!-- Karta 2: PostgreSQL (Products & JSONB) -->
+        <div class="col">
+            <div class="card h-100 shadow-sm border-primary" style="border-color: #336791 !important;">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="card-title mb-0" style="color: #336791;">🐘 PostgreSQL</h4>
+                            <span class="badge" style="background-color: #336791;">JSONB & Triggers</span>
+                        </div>
+                        <p class="card-text text-muted">
+                            Katalog produktów i kategorii oparty o <strong>PostgreSQL (Neon Serverless)</strong>. Prezentuje relacje PK/FK, natywne tablice <code>text[]</code>, kolumny <strong>JSONB</strong> oraz wyzwalacze audytu (<strong>Triggers</strong>).
+                        </p>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <a href="postgres/products" class="btn btn-outline-primary w-50" style="color: #336791; border-color: #336791;">Produkty &rarr;</a>
+                        <a href="postgres/categories" class="btn btn-outline-secondary w-50">Kategorie &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Karta 3: Cosmos DB -->
         <div class="col">
             <div class="card h-100 shadow-sm border-info">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -79,7 +101,7 @@
             </div>
         </div>
 
-        <!-- Karta 3: MongoDB -->
+        <!-- Karta 4: MongoDB -->
         <div class="col">
             <div class="card h-100 shadow-sm border-success">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -97,7 +119,7 @@
             </div>
         </div>
 
-        <!-- Karta 4: FizzBuzz -->
+        <!-- Karta 5: FizzBuzz -->
         <div class="col">
             <div class="card h-100 shadow-sm border-secondary">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -115,7 +137,7 @@
             </div>
         </div>
 
-        <!-- Karta 5: Counter -->
+        <!-- Karta 6: Counter -->
         <div class="col">
             <div class="card h-100 shadow-sm border-secondary">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -133,7 +155,7 @@
             </div>
         </div>
 
-        <!-- Karta 6: Weather -->
+        <!-- Karta 7: Weather -->
         <div class="col">
             <div class="card h-100 shadow-sm border-secondary">
                 <div class="card-body d-flex flex-column justify-content-between">
@@ -160,6 +182,7 @@
             <ul class="mb-0 text-muted">
                 <li><strong>Frontend & Backend:</strong> Hosting w usłudze <em>Azure App Service (Linux, Plan F1)</em> spięty z własną subdomeną <code>blazordemo.md-dev.net.pl</code>.</li>
                 <li><strong>Relacyjna Baza Danych:</strong> <em>Azure SQL Database (Warstwa Basic)</em> w regionie <code>Poland Central</code> z kontrolą dostępu przez Firewall.</li>
+                <li><strong>Relacyjna Baza Serverless:</strong> <em>PostgreSQL (Neon.tech w regionie Frankfurt)</em> z obsługą kolumn <code>JSONB</code>, tablic <code>text[]</code> oraz wyzwalaczy audytowych (<code>Triggers</code>).</li>
                 <li><strong>Natywna Baza NoSQL:</strong> <em>Azure Cosmos DB for NoSQL (Free Tier)</em> z modelem partycjonowania <code>/category</code>.</li>
                 <li><strong>Bezserwerowy Cron Job:</strong> <em>Azure Functions (Timer Trigger)</em> wykonujący codzienne automatyczne czyszczenie bazy zadań.</li>
                 <li><strong>Baza NoSQL (Dokumentowa):</strong> Klaster <em>MongoDB Atlas (M0 Sandbox)</em> w chmurze Microsoft Azure.</li>

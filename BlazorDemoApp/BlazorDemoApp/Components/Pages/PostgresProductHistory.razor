@@ -1,0 +1,130 @@
+﻿@page "/postgres/products/{Id:int}/history"
+@attribute [StreamRendering]
+@using BlazorDemoApp.Models
+@using BlazorDemoApp.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@inject IDbContextFactory<PostgresDbContext> DbFactory
+@inject ILogger<PostgresProductHistory> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Historia Zmian Produktu - Audit Log</PageTitle>
+
+<div class="container mt-4 mb-5">
+    <!-- Górny pasek nawigacyjny -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <a href="postgres/products" class="btn btn-outline-secondary btn-sm mb-2">&larr; Wróć do listy produktów</a>
+            <h2>📜 Historia audytu produktu #@Id</h2>
+            @if (product != null)
+            {
+                <p class="text-muted mb-0">
+                    Produkt: <strong class="text-primary">@product.Name</strong> (SKU: <code>@product.Sku</code>)
+                </p>
+            }
+        </div>
+        <span class="badge bg-dark fs-6 px-3 py-2">PostgreSQL Trigger & JSONB Audit</span>
+    </div>
+
+    <hr />
+
+    @if (isLoading)
+    {
+        <p><em>Ładowanie historii audytu z PostgreSQL...</em></p>
+    }
+    else if (auditLogs == null || !auditLogs.Any())
+    {
+        <div class="alert alert-info shadow-sm p-4">
+            <h5 class="alert-heading">Brak zarejestrowanych zmian!</h5>
+            <p class="mb-0">
+                Dla tego produktu nie ma jeszcze wpisów w tabeli <code>audit_logs</code>.
+                Wróć do listy, kliknij <strong>✏️ Edytuj</strong>, zmień cenę lub stan magazynowy i zapisz – trigger w bazie natychmiast zarejestruje wpis!
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="timeline">
+            @foreach (var log in auditLogs)
+            {
+                <div class="card shadow-sm mb-3 border-secondary">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge @(log.Operation == "UPDATE" ? "bg-warning text-dark" : "bg-danger") me-2">
+                                @log.Operation
+                            </span>
+                            <strong class="text-secondary">Wpis w audycie #@log.Id</strong>
+                        </div>
+                        <small class="text-muted">
+                            🕒 @log.PerformedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")
+                        </small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Stan Przed Zmianą (OLD DATA) -->
+                            <div class="col-md-6">
+                                <h6 class="text-danger small fw-bold mb-1">🔴 Stan przed zmianą (OLD JSONB):</h6>
+                                <pre class="p-2 bg-light rounded border text-muted small" style="max-height: 180px; overflow-y: auto;"><code>@FormatJson(log.OldData)</code></pre>
+                            </div>
+
+                            <!-- Stan Po Zmianie (NEW DATA) -->
+                            <div class="col-md-6">
+                                <h6 class="text-success small fw-bold mb-1">🟢 Stan po zmianie (NEW JSONB):</h6>
+                                <pre class="p-2 bg-light rounded border text-dark small" style="max-height: 180px; overflow-y: auto;"><code>@FormatJson(log.NewData)</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private PostgresProduct? product;
+    private List<PostgresAuditLog>? auditLogs;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+
+            // 1. Pobierz podstawowe dane produktu
+            product = await context.Products.FindAsync(Id);
+
+            // 2. Pobierz historię z tabeli audit_logs zarejestrowaną przez Trigger
+            auditLogs = await context.AuditLogs
+                .Where(l => l.TableName == "products" && l.RecordId == Id)
+                .OrderByDescending(l => l.PerformedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas pobierania historii audytu dla ID {ProductId}", Id);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // Pomocnicza funkcja formatująca surowy JSON na czytelny z wcięciami
+    private string FormatJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return "Brak danych (NULL)";
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+}

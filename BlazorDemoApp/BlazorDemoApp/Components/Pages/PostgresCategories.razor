@@ -1,0 +1,240 @@
+﻿@page "/postgres/categories"
+@attribute [StreamRendering]
+@using BlazorDemoApp.Models
+@using BlazorDemoApp.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<PostgresDbContext> DbFactory
+@inject ILogger<PostgresCategories> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Kategorie - PostgreSQL</PageTitle>
+
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div>
+            <h1>📁 Kategorie Produktów (PostgreSQL)</h1>
+            <p class="text-muted mb-0">
+                Zarządzanie relacjami nadrzędnymi z zabezpieczeniem klucza obcego (<strong>ON DELETE RESTRICT</strong>).
+            </p>
+        </div>
+        <span class="badge bg-secondary fs-6 px-3 py-2">Relational FK Constraint</span>
+    </div>
+
+    <hr />
+
+    <!-- Formularz Dodawania Kategorii -->
+    <div class="card shadow-sm mb-4 col-md-8 col-lg-6 border-secondary">
+        <div class="card-body">
+            <h5 class="card-title mb-3">➕ Dodaj nową kategorię</h5>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <strong>Uwaga!</strong> @errorMessage
+                    <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <strong>Sukces!</strong> @successMessage
+                    <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+                </div>
+            }
+
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Nazwa kategorii *:</label>
+                <input type="text" class="form-control" placeholder="np. Smartfony i Tablety" @bind="newCategoryName" maxlength="50" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Slug (opcjonalny - wygeneruje się sam):</label>
+                <input type="text" class="form-control" placeholder="np. smartfony-i-tablety" @bind="newCategorySlug" maxlength="50" />
+            </div>
+
+            <button class="btn btn-primary" @onclick="AddCategory" disabled="@(categories != null && categories.Count >= 15)">
+                Zapisz kategorię
+            </button>
+            <small class="text-muted d-block mt-1">Liczba kategorii: @(categories?.Count ?? 0) / 15</small>
+        </div>
+    </div>
+
+    <!-- Tabela Kategorii -->
+    <h3 class="mb-3">Lista kategorii w bazie:</h3>
+    @if (categories == null)
+    {
+        <p><em>Ładowanie kategorii z PostgreSQL...</em></p>
+    }
+    else if (!categories.Any())
+    {
+        <div class="alert alert-info col-md-8 col-lg-6">Brak kategorii w bazie. Dodaj pierwszą powyżej!</div>
+    }
+    else
+    {
+        <div class="table-responsive col-md-10 col-lg-8 shadow-sm rounded">
+            <table class="table table-hover table-bordered align-middle mb-0 bg-white">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th>Nazwa kategorii</th>
+                        <th>Slug (URL)</th>
+                        <th>Powiązane produkty</th>
+                        <th style="width: 100px;" class="text-center">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in categories)
+                    {
+                        <tr>
+                            <td class="fw-bold text-muted">@item.Category.Id</td>
+                            <td class="fw-bold text-primary">@item.Category.Name</td>
+                            <td><code>@item.Category.Slug</code></td>
+                            <td>
+                                @if (item.ProductCount > 0)
+                                {
+                                    <span class="badge bg-info text-dark">📦 @item.ProductCount szt.</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-muted border">Brak produktów</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteCategory(item.Category)" title="Usuń kategorię">
+                                    🗑️ Usuń
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private class CategoryViewItem
+    {
+        public PostgresCategory Category { get; set; } = new();
+        public int ProductCount { get; set; }
+    }
+
+    private List<CategoryViewItem>? categories;
+    private string newCategoryName = string.Empty;
+    private string newCategorySlug = string.Empty;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategories();
+    }
+
+    private async Task LoadCategories()
+    {
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+
+            // Pobieramy kategorie wraz z liczbą przypisanych do nich produktów
+            categories = await context.Categories
+                .Select(c => new CategoryViewItem
+                {
+                    Category = c,
+                    ProductCount = context.Products.Count(p => p.CategoryId == c.Id)
+                })
+                .OrderBy(c => c.Category.Id)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas ładowania kategorii");
+            errorMessage = "Błąd pobierania kategorii z PostgreSQL.";
+            categories = new List<CategoryViewItem>();
+        }
+    }
+
+    private async Task AddCategory()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(newCategoryName))
+        {
+            errorMessage = "Pole „Nazwa kategorii” jest wymagane!";
+            return;
+        }
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+
+            var count = await context.Categories.CountAsync();
+            if (count >= 15)
+            {
+                errorMessage = "Osiągnięto limit 15 kategorii demo!";
+                return;
+            }
+
+            // Automatyczne generowanie sluga jeśli pole zostało puste
+            var slug = string.IsNullOrWhiteSpace(newCategorySlug)
+                ? newCategoryName.Trim().ToLower().Replace(" ", "-").Replace("&", "i")
+                : newCategorySlug.Trim().ToLower().Replace(" ", "-");
+
+            var category = new PostgresCategory
+            {
+                Name = newCategoryName.Trim(),
+                Slug = slug
+            };
+
+            context.Categories.Add(category);
+            await context.SaveChangesAsync();
+
+            newCategoryName = string.Empty;
+            newCategorySlug = string.Empty;
+            successMessage = "Kategoria została pomyślnie dodana!";
+
+            await LoadCategories();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd dodawania kategorii");
+            errorMessage = "Wystąpił błąd zapisu. Upewnij się, że nazwa i slug są unikalne!";
+        }
+    }
+
+    private async Task DeleteCategory(PostgresCategory category)
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+
+            // 1. Sprawdzamy czy kategoria jest używana w produktach (Więzy integralności FK)
+            var linkedProductsCount = await context.Products.CountAsync(p => p.CategoryId == category.Id);
+            if (linkedProductsCount > 0)
+            {
+                errorMessage = $"❌ Nie można usunąć kategorii „{category.Name}”, ponieważ jest przypisana do {linkedProductsCount} produktów! Usuń najpierw powiązane produkty.";
+                return;
+            }
+
+            // 2. Jeśli nie ma powiązań -> usuwamy bezpiecznie
+            var catInDb = await context.Categories.FindAsync(category.Id);
+            if (catInDb != null)
+            {
+                context.Categories.Remove(catInDb);
+                await context.SaveChangesAsync();
+                successMessage = $"Kategoria „{category.Name}” została usunięta.";
+            }
+
+            await LoadCategories();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd usuwania kategorii");
+            errorMessage = "Nie udało się usunąć kategorii z bazy.";
+        }
+    }
+}
