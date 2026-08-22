@@ -1,5 +1,4 @@
 ﻿@page "/postgres/products"
-@attribute [StreamRendering]
 @using BlazorDemoApp.Models
 @using BlazorDemoApp.Data
 @using Microsoft.EntityFrameworkCore
@@ -125,7 +124,21 @@
     <h3 class="mb-3">Lista produktów w tabeli PostgreSQL:</h3>
     @if (products == null)
     {
-        <p><em>Ładowanie tabeli produktów z Neon PostgreSQL...</em></p>
+        <div class="card shadow-sm p-4 text-center border-0 bg-light mb-3">
+            <div class="d-flex justify-content-center align-items-center gap-3 mb-3">
+                <div class="spinner-border text-primary" role="status" style="width: 2rem; height: 2rem;">
+                    <span class="visually-hidden">Ładowanie...</span>
+                </div>
+                <h5 class="mb-0 text-muted">Pobieranie produktów z Neon PostgreSQL...</h5>
+            </div>
+
+            <!-- Pulsujące szare paski symulujące wiersze tabeli -->
+            <div class="placeholder-glow">
+                <div class="placeholder col-12 bg-secondary opacity-25 rounded mb-2" style="height: 40px;"></div>
+                <div class="placeholder col-12 bg-secondary opacity-25 rounded mb-2" style="height: 40px;"></div>
+                <div class="placeholder col-12 bg-secondary opacity-25 rounded" style="height: 40px;"></div>
+            </div>
+        </div>
     }
     else if (!products.Any())
     {
@@ -202,9 +215,8 @@
                                 <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => StartEdit(prod)" title="Edytuj produkt">
                                     ✏️ 
                                 </button>
-                                <!-- Przycisk przejścia do historii audytu -->
                                 <a href="postgres/products/@prod.Id/history" class="btn btn-outline-secondary btn-sm me-1" title="Historia zmian (Audit Log)">
-                                    📜
+                                    📜 
                                 </a>
                                 <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteProduct(prod.Id)" title="Usuń z bazy">
                                     🗑️
@@ -229,6 +241,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Proste, bezpośrednie załadowanie danych przy starcie
         await EnsureSeedCategoriesAndLoad();
     }
 
@@ -239,7 +252,6 @@
             using var context = await DbFactory.CreateDbContextAsync();
             await context.Database.EnsureCreatedAsync();
 
-            // Upewnij się, że są kategorie w bazie
             if (!await context.Categories.AnyAsync())
             {
                 context.Categories.AddRange(
@@ -288,7 +300,6 @@
         errorMessage = string.Empty;
         successMessage = string.Empty;
 
-        // Walidacja formularza
         if (string.IsNullOrWhiteSpace(formProduct.Name))
         {
             errorMessage = "Pole „Nazwa produktu” jest wymagane!";
@@ -312,7 +323,6 @@
 
             if (isEditMode)
             {
-                // Tryb Edycji (UPDATE)
                 var existing = await context.Products.FindAsync(formProduct.Id);
                 if (existing != null)
                 {
@@ -331,7 +341,6 @@
             }
             else
             {
-                // Tryb Dodawania (INSERT)
                 var count = await context.Products.CountAsync();
                 if (count >= 15)
                 {
@@ -383,10 +392,10 @@
             StockQuantity = prod.StockQuantity,
             Specifications = new ProductSpecs
             {
-                Cpu = prod.Specifications.Cpu,
-                Ram = prod.Specifications.Ram,
-                Color = prod.Specifications.Color,
-                Warranty = prod.Specifications.Warranty
+                Cpu = prod.Specifications?.Cpu ?? "",
+                Ram = prod.Specifications?.Ram ?? "",
+                Color = prod.Specifications?.Color ?? "Graphite",
+                Warranty = prod.Specifications?.Warranty ?? "24m"
             }
         };
 
