@@ -1,0 +1,430 @@
+﻿@page "/weather"
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@using System.Globalization
+@using BlazorDemoApp.Models
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ILogger<Weather> Logger
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Stacja Pogodowa na Żywo - Open-Meteo</PageTitle>
+
+<div class="container mt-4 mb-5">
+    <!-- Nagłówek -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h1>⛅ Stacja Pogodowa & Wyszukiwarka</h1>
+            <p class="text-muted mb-0">
+                Wyszukuj dowolne miejscowości na świecie i zapisuj swoje ulubione miasto.
+            </p>
+        </div>
+        <span class="badge bg-primary fs-6 px-3 py-2">Open-Meteo & LocalStorage</span>
+    </div>
+
+    <hr />
+
+    <!-- Wyszukiwarka Miejscowości -->
+    <div class="card shadow-sm p-3 mb-4 bg-light border-0">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white">🔍</span>
+                    <input type="text"
+                           class="form-control"
+                           placeholder="Wpisz miasto (np. Gdynia, Zakopane, Paryż)..."
+                           @bind="searchQuery"
+                           @bind:event="oninput"
+                           @onkeyup="HandleSearchKeyUp" />
+                    <button class="btn btn-primary" @onclick="SearchCity" disabled="@isSearching">
+                        @(isSearching ? "Szukam..." : "Szukaj")
+                    </button>
+                </div>
+            </div>
+
+            <!-- Szybki wybór popularnych miast -->
+            <div class="col-md-6 col-lg-7">
+                <div class="d-flex align-items-center flex-wrap gap-1">
+                    <span class="small text-muted me-1">Popularne:</span>
+                    @foreach (var city in popularCities)
+                    {
+                        <button class="btn btn-sm @(selectedCity.Name == city.Name ? "btn-primary shadow-sm" : "btn-outline-secondary")"
+                                @onclick="() => SelectCity(city)">
+                            @city.Name
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Wyniki wyszukiwania miast -->
+        @if (searchResults != null && searchResults.Any())
+        {
+            <div class="mt-3 p-2 bg-white rounded border shadow-sm">
+                <small class="text-muted d-block mb-1">Wyniki wyszukiwania (kliknij, aby wybrać i zapisać):</small>
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach (var result in searchResults)
+                    {
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => SelectSearchResult(result)">
+                            📍 <strong>@result.Name</strong> @(!string.IsNullOrEmpty(result.Admin1) ? $"({result.Admin1})" : "") - @result.Country
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+        else if (isSearchEmpty)
+        {
+            <div class="mt-2 text-danger small">
+                Nie znaleziono miejscowości o nazwie „@lastSearchedQuery”. Spróbuj wpisać poprawną nazwę.
+            </div>
+        }
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="card shadow-sm p-5 text-center border-0 bg-light">
+            <div class="spinner-border text-primary mx-auto mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+            <h5>Pobieranie aktualnych danych pogodowych dla: @selectedCity.Name...</h5>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger shadow-sm" role="alert">
+            <strong>Błąd!</strong> @errorMessage
+            <button class="btn btn-sm btn-outline-danger ms-3" @onclick="() => LoadWeatherData(selectedCity)">Spróbuj ponownie</button>
+        </div>
+    }
+    else if (weatherData != null)
+    {
+        <!-- Informacja o zapisanym mieście -->
+        <div class="d-flex justify-content-between align-items-center mb-2 text-muted small">
+            <span>💾 Domyślnie zapisane miasto w Twojej przeglądarce: <strong>@selectedCity.Name</strong></span>
+            <span>Ostatnia aktualizacja: @DateTime.Now.ToString("HH:mm:ss")</span>
+        </div>
+
+        <!-- Główna karta aktualnej pogody -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="card h-100 shadow-sm border-0 text-white" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+                    <div class="card-body p-4 d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h3 class="fw-bold mb-0">@selectedCity.Name</h3>
+                                <small class="text-white-50">Współrzędne: @selectedCity.Lat.ToString("F2", CultureInfo.InvariantCulture)°N, @selectedCity.Lon.ToString("F2", CultureInfo.InvariantCulture)°E</small>
+                            </div>
+                            <span class="fs-1">@GetWeatherIcon(weatherData.Current?.WeatherCode ?? 0, weatherData.Current?.IsDay == 1)</span>
+                        </div>
+
+                        <div class="my-4">
+                            <div class="display-3 fw-bold">@weatherData.Current?.Temperature.ToString("F1")°C</div>
+                            <h5 class="text-info fw-normal mb-0">@GetWeatherDescription(weatherData.Current?.WeatherCode ?? 0)</h5>
+                            <small class="text-white-50">Temperatura odczuwalna: @weatherData.Current?.ApparentTemperature.ToString("F1")°C</small>
+                        </div>
+
+                        <div class="row g-2 pt-3 border-top border-white border-opacity-25 text-center">
+                            <div class="col-4">
+                                <small class="text-white-50 d-block">💧 Wilgotność</small>
+                                <strong>@weatherData.Current?.Humidity%</strong>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-white-50 d-block">💨 Wiatr</small>
+                                <strong>@weatherData.Current?.WindSpeed km/h</strong>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-white-50 d-block">🌧️ Opady</small>
+                                <strong>@weatherData.Current?.Precipitation mm</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Karty dni: Wczoraj (Historia) + Dzisiaj + Prognoza -->
+            <div class="col-lg-6">
+                <div class="card h-100 shadow-sm border-0 bg-light p-3">
+                    <h5 class="fw-bold mb-3 text-secondary">📅 Zestawienie: Wczoraj + Prognoza na kolejne dni</h5>
+
+                    @if (weatherData.Daily != null)
+                    {
+                        <div class="list-group list-group-flush rounded">
+                            @for (int i = 0; i < weatherData.Daily.Time.Count; i++)
+                            {
+                                var dateStr = weatherData.Daily.Time[i];
+                                var maxTemp = weatherData.Daily.TemperatureMax[i];
+                                var minTemp = weatherData.Daily.TemperatureMin[i];
+                                var code = weatherData.Daily.WeatherCode[i];
+                                var label = GetDayLabel(dateStr, i);
+
+                                <div class="list-group-item d-flex justify-content-between align-items-center bg-white mb-2 shadow-sm rounded border">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <span class="fs-3">@GetWeatherIcon(code)</span>
+                                        <div>
+                                            <strong class="@(label == "Dzisiaj" ? "text-primary" : "")">@label</strong>
+                                            <small class="text-muted d-block">@DateTime.Parse(dateStr).ToString("dd.MM.yyyy (ddd)")</small>
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="fw-bold fs-5 text-danger">@maxTemp.ToString("F0")°</span>
+                                        <span class="text-muted fs-6 ms-1">/ @minTemp.ToString("F0")°C</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Rozkład temperatur w ciągu ostatnich i najbliższych godzin -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-secondary mb-3">🕒 Przebieg temperatur (Ostatnie 24h & Najbliższe godziny):</h5>
+
+                @if (weatherData.Hourly != null)
+                {
+                    <div class="d-flex overflow-auto gap-2 py-2" style="scrollbar-width: thin;">
+                        @for (int i = 0; i < weatherData.Hourly.Time.Count; i += 3)
+                        {
+                            var timeStr = weatherData.Hourly.Time[i];
+                            var temp = weatherData.Hourly.Temperature[i];
+                            var code = weatherData.Hourly.WeatherCode[i];
+                            var timeParsed = DateTime.Parse(timeStr);
+                            var isNow = Math.Abs((timeParsed - DateTime.UtcNow).TotalHours) < 1.5;
+                            var isDayHour = weatherData.Hourly.IsDay.Count > i ? weatherData.Hourly.IsDay[i] == 1 : (timeParsed.Hour >= 6 && timeParsed.Hour < 21);
+
+                            <div class="card p-2 text-center flex-shrink-0 @(isNow ? "border-primary bg-primary bg-opacity-10" : "bg-light border-0")" style="width: 85px;">
+                                <small class="text-muted">@timeParsed.ToString("dd.MM")</small>
+                                <strong class="@(isNow ? "text-primary" : "")">@timeParsed.ToString("HH:mm")</strong>
+                                <span class="fs-4 my-1">@GetWeatherIcon(code, isDayHour)</span>
+                                <span class="fw-bold">@temp.ToString("F0")°C</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isSearching = false;
+    private bool isSearchEmpty = false;
+    private string searchQuery = string.Empty;
+    private string lastSearchedQuery = string.Empty;
+    private string errorMessage = string.Empty;
+    private WeatherApiResponse? weatherData;
+    private List<GeocodingResult>? searchResults;
+    private CityInfo selectedCity = default!;
+
+    public record CityInfo(string Name, double Lat, double Lon);
+
+    private List<CityInfo> popularCities = new()
+    {
+        new("Sosnowiec", 50.2863, 19.1041),
+        new("Warszawa", 52.2297, 21.0122),
+        new("Kraków", 50.0647, 19.9450),
+        new("Wrocław", 51.1079, 17.0385),
+        new("Gdańsk", 54.3520, 18.6466),
+        new("Poznań", 52.4064, 16.9252),
+        new("Zakopane", 49.2992, 19.9496)
+    };    
+
+    protected override void OnInitialized()
+    {
+        selectedCity = popularCities.First();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {       
+
+        if (firstRender)
+        {
+            // 1. Odczytujemy zapisane miasto z localStorage w przeglądarce
+            try
+            {
+                var savedCityJson = await JS.InvokeAsync<string?>("localStorage.getItem", "saved_weather_city");
+                if (!string.IsNullOrEmpty(savedCityJson))
+                {
+                    var savedCity = JsonSerializer.Deserialize<CityInfo>(savedCityJson);
+                    if (savedCity != null)
+                    {
+                        selectedCity = savedCity;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Nie udało się odczytać zapisanego miasta z localStorage");
+            }
+
+            await LoadWeatherData(selectedCity);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SelectCity(CityInfo city)
+    {
+        selectedCity = city;
+        searchResults = null;
+        isSearchEmpty = false;
+        searchQuery = string.Empty;
+
+        // Zapisujemy wybór do localStorage
+        await SaveCityToStorage(city);
+        await LoadWeatherData(city);
+    }
+
+    private async Task SelectSearchResult(GeocodingResult result)
+    {
+        var city = new CityInfo(result.Name, result.Latitude, result.Longitude);
+        await SelectCity(city);
+    }
+
+    private async Task SaveCityToStorage(CityInfo city)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(city);
+            await JS.InvokeVoidAsync("localStorage.setItem", "saved_weather_city", json);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Błąd zapisu do localStorage");
+        }
+    }
+
+    private async Task SearchCity()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) return;
+
+        isSearching = true;
+        isSearchEmpty = false;
+        lastSearchedQuery = searchQuery.Trim();
+
+        try
+        {
+            var url = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(lastSearchedQuery)}&count=5&language=pl&format=json";
+            var response = await Http.GetFromJsonAsync<GeocodingResponse>(url);
+
+            searchResults = response?.Results;
+            isSearchEmpty = searchResults == null || !searchResults.Any();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd wyszukiwania miejscowości");
+            isSearchEmpty = true;
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private async Task HandleSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchCity();
+        }
+    }
+
+    private async Task LoadWeatherData(CityInfo city)
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var url = $"https://api.open-meteo.com/v1/forecast?latitude={city.Lat.ToString(CultureInfo.InvariantCulture)}&longitude={city.Lon.ToString(CultureInfo.InvariantCulture)}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=3";
+
+            weatherData = await Http.GetFromJsonAsync<WeatherApiResponse>(url);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd pobierania danych pogodowych");
+            errorMessage = "Nie udało się połączyć z API Open-Meteo. Sprawdź połączenie.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetDayLabel(string dateStr, int index)
+    {
+        var date = DateTime.Parse(dateStr).Date;
+        var today = DateTime.UtcNow.Date;
+
+        if (date == today.AddDays(-1)) return "Wczoraj";
+        if (date == today) return "Dzisiaj";
+        if (date == today.AddDays(1)) return "Jutro";
+        if (date == today.AddDays(2)) return "Pojutrze";
+        return date.ToString("dddd");
+    }
+
+    private MarkupString GetWeatherIcon(int code, bool isDay = true)
+    {
+        // 1. Specjalny wektorowy SVG dla lekkiego zachmurzenia nocą (Księżyc zza chmury)
+        if (!isDay && (code == 1 || code == 2))
+        {
+            return new MarkupString(
+                "<svg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' fill='#e0e6ed' viewBox='0 0 16 16' style='vertical-align: -0.125em;'>" +
+                "<path d='M11.473 11a4.5 4.5 0 0 0-8.72-.99A3 3 0 0 0 3 16h8.5a2.5 2.5 0 0 0 0-5z'/>" +
+                "<path d='M11.288 9.012a4.5 4.5 0 0 0-.887-.012c.3-.578.48-1.229.48-1.92 0-.288-.028-.57-.082-.843A4 4 0 0 0 7.02 2.052a4 4 0 0 1 4.268 6.96z' fill='#f6c23e'/>" +
+                "</svg>"
+            );
+        }
+
+        // 2. Pozostałe ikony dla NOCY
+        if (!isDay)
+        {
+            var nightEmoji = code switch
+            {
+                0 => "🌙",               // Czyste niebo (Księżyc)
+                3 => "☁️",               // Pochmurno
+                45 or 48 => "🌫️",        // Mgła
+                51 or 53 or 55 => "🌧️",  // Mżawka
+                61 or 63 or 65 => "🌧️",  // Deszcz
+                71 or 73 or 75 => "❄️",  // Śnieg
+                80 or 81 or 82 => "🌧️",  // Przelotne opady
+                95 or 96 or 99 => "⛈️",  // Burza
+                _ => "🌡️"
+            };
+            return new MarkupString(nightEmoji);
+        }
+
+        // 3. Ikony dla DNIA
+        var dayEmoji = code switch
+        {
+            0 => "☀️",
+            1 or 2 => "🌤️",
+            3 => "☁️",
+            45 or 48 => "🌫️",
+            51 or 53 or 55 => "🌧️",
+            61 or 63 or 65 => "🌧️",
+            71 or 73 or 75 => "❄️",
+            80 or 81 or 82 => "🌦️",
+            95 or 96 or 99 => "⛈️",
+            _ => "🌡️"
+        };
+        return new MarkupString(dayEmoji);
+    }
+
+    private string GetWeatherDescription(int code) => code switch
+    {
+        0 => "Czyste, bezchmurne niebo",
+        1 => "Głównie słonecznie",
+        2 => "Częściowe zachmurzenie",
+        3 => "Pochmurno",
+        45 or 48 => "Mgła",
+        51 or 53 or 55 => "Mżawka",
+        61 or 63 or 65 => "Opady deszczu",
+        71 or 73 or 75 => "Opady śniegu",
+        80 or 81 or 82 => "Przelotny deszcz",
+        95 or 96 or 99 => "Burza z piorunami",
+        _ => "Umiarkowanie"
+    };
+
+    
+}

@@ -3,7 +3,7 @@
 @using Microsoft.Azure.Cosmos
 @inject CosmosClient CosmosClient
 @inject ILogger<CosmosDemo> Logger
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>Azure Cosmos DB Demo</PageTitle>
 

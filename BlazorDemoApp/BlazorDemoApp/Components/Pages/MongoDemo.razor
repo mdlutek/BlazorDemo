@@ -3,7 +3,7 @@
 @using MongoDB.Driver
 @inject IMongoClient MongoClient
 @inject ILogger<MongoDemo> Logger
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>MongoDB NoSQL Demo</PageTitle>
 
