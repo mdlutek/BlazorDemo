@@ -4,7 +4,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<PostgresDbContext> DbFactory
 @inject ILogger<PostgresProducts> Logger
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer //@(new InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>PostgreSQL Products CRUD</PageTitle>
 
@@ -122,7 +122,7 @@
 
     <!-- Tabela Produktów -->
     <h3 class="mb-3">Lista produktów w tabeli PostgreSQL:</h3>
-    @if (products == null)
+    @if (isLoading || products == null)
     {
         <div class="card shadow-sm p-4 text-center border-0 bg-light mb-3">
             <div class="d-flex justify-content-center align-items-center gap-3 mb-3">
@@ -236,17 +236,20 @@
     private PostgresProduct formProduct = new();
     private string tagsInput = string.Empty;
     private bool isEditMode = false;
+    private bool isLoading = true; // Flaga stanu ładowania w tle
     private string errorMessage = string.Empty;
     private string successMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        // Proste, bezpośrednie załadowanie danych przy starcie
-        await EnsureSeedCategoriesAndLoad();
+        // 1. Nie blokujemy metody - strona i formularz pojawiają się NATYCHMIAST (w 0 ms)
+        _ = LoadDataInBackgroundAsync();
+        await Task.CompletedTask;
     }
 
-    private async Task EnsureSeedCategoriesAndLoad()
+    private async Task LoadDataInBackgroundAsync()
     {
+        isLoading = true;
         try
         {
             using var context = await DbFactory.CreateDbContextAsync();
@@ -268,13 +271,22 @@
                 formProduct.CategoryId = categories.First().Id;
             }
 
-            await LoadProducts();
+            products = await context.Products
+                .Include(p => p.Category)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Błąd podczas ładowania danych PostgreSQL");
             errorMessage = "Nie udało się połączyć z bazą PostgreSQL.";
             products = new List<PostgresProduct>();
+        }
+        finally
+        {
+            isLoading = false;
+            // 2. Informujemy Blazora, że dane spłynęły z bazy i odświeżamy tabelę
+            await InvokeAsync(StateHasChanged);
         }
     }
 

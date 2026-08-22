@@ -1,21 +1,388 @@
 ﻿@page "/counter"
 @rendermode InteractiveWebAssembly
+@inject IJSRuntime JS
 
-<PageTitle>Counter</PageTitle>
+<PageTitle>Analizator Bezpieczeństwa Haseł - WebAssembly</PageTitle>
 
-<div class="container mt-4">
-    <h1>Counter</h1>
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div>
+            <h1>🔒 Analizator & Generator Haseł</h1>
+            <p class="text-muted mb-0">
+                Obliczanie entropii matematycznej i szacowanie czasu złamania hasła w 100% po stronie przeglądarki (WebAssembly).
+            </p>
+        </div>
+        <span class="badge bg-success fs-6 px-3 py-2">WASM Cybersecurity</span>
+    </div>
 
-    <p role="status">Current count: @currentCount</p>
+    <hr />
 
-    <button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+    <div class="row g-4">
+        <!-- LEWA KOLUMNA: Analizator wprowadzanego hasła -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100 p-3 bg-light">
+                <h4 class="fw-bold mb-3 text-primary">🔍 Sprawdź siłę swojego hasła</h4>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Wpisz lub wklej hasło:</label>
+                    <div class="input-group">
+                        <input type="@(showPassword ? "text" : "password")"
+                               class="form-control form-control-lg bg-white"
+                               placeholder="Wpisz dowolne hasło..."
+                               @bind="inputPassword"
+                               @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword">
+                            @(showPassword ? "🙈 Ukryj" : "👁️ Pokaż")
+                        </button>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(inputPassword))
+                {
+                    <!-- Pasek siły hasła -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold">Poziom bezpieczeństwa:</span>
+                            <span class="badge @StrengthBadgeClass fs-6">@StrengthLabel</span>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar @StrengthProgressClass progress-bar-striped progress-bar-animated"
+                                 role="progressbar"
+                                 style="width: @(Math.Min(100, (int)(Entropy * 1.1)))%">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Karta Szacowanego Czasu Złamania Hasła -->
+                    <div class="card p-3 mb-3 border-0 text-white shadow-sm" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+                        <div class="small text-white-50">Szacowany czas złamania (Klaster 8x RTX 4090 - 100 mld prób/sek.):</div>
+                        <div class="display-6 fw-bold my-1 text-warning">@TimeToCrack</div>
+                        <small class="text-white-50">Entropia matematyczna: <strong>@Entropy.ToString("F1") bitów</strong> (Pula znaków: @PoolSize)</small>
+                    </div>
+
+                    <!-- Lista kontrolna kryteriów bezpieczeństwa -->
+                    <div class="p-3 bg-white rounded border">
+                        <h6 class="small fw-bold mb-2">Parametry hasła:</h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-1 @(inputPassword.Length >= 12 ? "text-success" : "text-muted")">
+                                @(inputPassword.Length >= 12 ? "✅" : "⚪") Długość: <strong>@inputPassword.Length znaków</strong> (zalecane min. 12)
+                            </li>
+                            <li class="mb-1 @(hasLower ? "text-success" : "text-muted")">
+                                @(hasLower ? "✅" : "⚪") Małe litery (a-z)
+                            </li>
+                            <li class="mb-1 @(hasUpper ? "text-success" : "text-muted")">
+                                @(hasUpper ? "✅" : "⚪") Wielkie litery (A-Z)
+                            </li>
+                            <li class="mb-1 @(hasDigits ? "text-success" : "text-muted")">
+                                @(hasDigits ? "✅" : "⚪") Cyfry (0-9)
+                            </li>
+                            <li class="mb-1 @(hasSpecial ? "text-success" : "text-muted")">
+                                @(hasSpecial ? "✅" : "⚪") Znaki specjalne (!@@#$%^&*)
+                            </li>
+                            @if (hasCommonPatterns)
+                            {
+                                <li class="text-danger fw-bold mt-2">
+                                    ⚠️ Wykryto popularne wzorce / ciągi słownikowe (np. 123, qwerty, admin, password)!
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info py-3 mb-0 small">
+                        Wpisz hasło powyżej, aby w ułamku sekundy obliczyć jego entropię i oszacować czas potrzebny na jego złamanie metodą Brute-Force.
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- PRAWA KOLUMNA: Zaawansowany Generator Haseł -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100 p-3 bg-light">
+                <h4 class="fw-bold mb-3 text-success">⚡ Generator Silnych Haseł</h4>
+
+                <!-- Wybór trybu generatora -->
+                <div class="btn-group w-100 mb-3" role="group">
+                    <button type="button" class="btn @(generatorMode == GeneratorMode.Random ? "btn-success" : "btn-outline-success")"
+                            @onclick="() => SetGeneratorMode(GeneratorMode.Random)">
+                        Losowe Znaki
+                    </button>
+                    <button type="button" class="btn @(generatorMode == GeneratorMode.Passphrase ? "btn-success" : "btn-outline-success")"
+                            @onclick="() => SetGeneratorMode(GeneratorMode.Passphrase)">
+                        Hasło Słowne (Passphrase)
+                    </button>
+                </div>
+
+                @if (generatorMode == GeneratorMode.Random)
+                {
+                    <!-- Suwak długości -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <label class="form-label small fw-bold">Długość hasła:</label>
+                            <span class="badge bg-success fs-6">@genLength znaków</span>
+                        </div>
+                        <input type="range" class="form-range" min="8" max="48" @bind="genLength" @bind:after="GeneratePassword" />
+                    </div>
+
+                    <!-- Przełączniki znaków -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chkUpper" @bind="genIncludeUpper" @bind:after="GeneratePassword" />
+                                <label class="form-check-label small" for="chkUpper">Wielkie litery (A-Z)</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chkDigits" @bind="genIncludeDigits" @bind:after="GeneratePassword" />
+                                <label class="form-check-label small" for="chkDigits">Cyfry (0-9)</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chkSpecial" @bind="genIncludeSpecial" @bind:after="GeneratePassword" />
+                                <label class="form-check-label small" for="chkSpecial">Symbole (!#$%)</label>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <!-- Suwak słów w Passphrase -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <label class="form-label small fw-bold">Liczba słów:</label>
+                            <span class="badge bg-success fs-6">@passphraseWordCount słowa</span>
+                        </div>
+                        <input type="range" class="form-range" min="3" max="6" @bind="passphraseWordCount" @bind:after="GeneratePassword" />
+                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                            Hasła słowne są łatwe do zapamiętania dla człowieka (np. <em>niebieski-orzel-pije-kawe-77</em>), a niemożliwe do złamania przez komputery.
+                        </small>
+                    </div>
+                }
+
+                <!-- Wygenerowane hasło i przyciski -->
+                <div class="card p-3 bg-white rounded border shadow-sm mt-auto">
+                    <label class="form-label small text-muted mb-1">Wygenerowane bezpieczne hasło:</label>
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control font-monospace fw-bold fs-5 text-primary" readonly value="@generatedPassword" />
+                        <button class="btn btn-outline-primary" @onclick="GeneratePassword" title="Wygeneruj inne">
+                            🔄
+                        </button>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success w-100" @onclick="CopyToClipboard">
+                            📋 @(isCopied ? "Skopiowano do schowka!" : "Kopiuj hasło")
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="TestGeneratedPassword" title="Przetestuj w analizatorze">
+                            👉 Przetestuj
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
 </div>
 
 @code {
-    private int currentCount = 0;
+    private string inputPassword = string.Empty;
+    private bool showPassword = false;
 
-    private void IncrementCount()
+    // Generator stan
+    private enum GeneratorMode { Random, Passphrase }
+    private GeneratorMode generatorMode = GeneratorMode.Random;
+    private int genLength = 16;
+    private bool genIncludeUpper = true;
+    private bool genIncludeDigits = true;
+    private bool genIncludeSpecial = true;
+    private int passphraseWordCount = 4;
+    private string generatedPassword = string.Empty;
+    private bool isCopied = false;
+
+    // Słownik słów do generatora haseł słownych (Passphrase)
+    private static readonly string[] WordBank = new[]
     {
-        currentCount++;
+        "niebieski", "szybki", "szmaragdowy", "cichy", "złoty", "diamentowy", "kosmiczny", "zimowy",
+        "laserowy", "dziki", "płonący", "stalowy", "tajemniczy", "słoneczny", "górski", "błyskawiczny",
+        "orzel", "tygrys", "wilk", "sokol", "gepart", "smok", "niedzwiedz", "rekin",
+        "rakieta", "satelita", "wulkan", "lodowiec", "horyzont", "ocean", "pustynia", "wicher",
+        "koduje", "buduje", "odkrywa", "skacze", "biegnie", "lata", "pilnuje", "strzeze", "tworzy",
+        "zamek", "brama", "portal", "most", "kompas", "radar", "klejnot", "diament", "krysztal"
+    };
+
+    protected override void OnInitialized()
+    {
+        GeneratePassword();
+    }
+
+    private void SetGeneratorMode(GeneratorMode mode)
+    {
+        generatorMode = mode;
+        GeneratePassword();
+    }
+
+    private void GeneratePassword()
+    {
+        isCopied = false;
+
+        if (generatorMode == GeneratorMode.Random)
+        {
+            const string lower = "abcdefghijklmnopqrstuvwxyz";
+            const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const string digits = "0123456789";
+            const string special = "!@#$%^&*()_+-=[]{}|";
+
+            string pool = lower;
+            if (genIncludeUpper) pool += upper;
+            if (genIncludeDigits) pool += digits;
+            if (genIncludeSpecial) pool += special;
+
+            var random = new Random();
+            var chars = new char[genLength];
+            for (int i = 0; i < genLength; i++)
+            {
+                chars[i] = pool[random.Next(pool.Length)];
+            }
+            generatedPassword = new string(chars);
+        }
+        else
+        {
+            // Generator haseł słownych (Passphrase)
+            var random = new Random();
+            var words = new List<string>();
+            for (int i = 0; i < passphraseWordCount; i++)
+            {
+                words.Add(WordBank[random.Next(WordBank.Length)]);
+            }
+            // Dodajemy losową liczbę na końcu dla dodatkowej entropii
+            int randomNum = random.Next(10, 99);
+            generatedPassword = $"{string.Join("-", words)}-{randomNum}";
+        }
+    }
+
+    private async Task CopyToClipboard()
+    {
+        if (string.IsNullOrEmpty(generatedPassword)) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", generatedPassword);
+            isCopied = true;
+        }
+        catch
+        {
+            // fallback jeśli schowek zablokowany
+        }
+    }
+
+    private void TestGeneratedPassword()
+    {
+        inputPassword = generatedPassword;
+        showPassword = true;
+    }
+
+    // ==========================================
+    // LOGIKA ANALIZATORA ENTROPII I BEZPIECZEŃSTWA
+    // ==========================================
+
+    private bool hasLower => inputPassword.Any(char.IsLower);
+    private bool hasUpper => inputPassword.Any(char.IsUpper);
+    private bool hasDigits => inputPassword.Any(char.IsDigit);
+    private bool hasSpecial => inputPassword.Any(c => !char.IsLetterOrDigit(c));
+
+    private bool hasCommonPatterns
+    {
+        get
+        {
+            var lower = inputPassword.ToLower();
+            string[] badPatterns = { "123", "abc", "qwerty", "admin", "password", "haslo", "asdf", "111", "000" };
+            return badPatterns.Any(p => lower.Contains(p));
+        }
+    }
+
+    private int PoolSize
+    {
+        get
+        {
+            int pool = 0;
+            if (hasLower) pool += 26;
+            if (hasUpper) pool += 26;
+            if (hasDigits) pool += 10;
+            if (hasSpecial) pool += 32;
+            return Math.Max(pool, 1);
+        }
+    }
+
+    // Wzór na entropię Shannona: E = L * log2(R)
+    private double Entropy
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(inputPassword)) return 0;
+            double rawEntropy = inputPassword.Length * Math.Log2(PoolSize);
+
+            // Kary za powtórzenia i słownikowe ciągi
+            if (hasCommonPatterns) rawEntropy = Math.Max(10, rawEntropy - 20);
+            if (inputPassword.Distinct().Count() < inputPassword.Length / 2) rawEntropy *= 0.7;
+
+            return Math.Round(rawEntropy, 1);
+        }
+    }
+
+    private string StrengthLabel => Entropy switch
+    {
+        < 28 => "Bardzo słabe ❌",
+        < 40 => "Słabe ⚠️",
+        < 60 => "Średnie 🟡",
+        < 80 => "Silne 🟢",
+        _ => "Pancerne (Wojskowe) 🛡️"
+    };
+
+    private string StrengthBadgeClass => Entropy switch
+    {
+        < 28 => "bg-danger",
+        < 40 => "bg-warning text-dark",
+        < 60 => "bg-info text-dark",
+        < 80 => "bg-success",
+        _ => "bg-primary"
+    };
+
+    private string StrengthProgressClass => Entropy switch
+    {
+        < 28 => "bg-danger",
+        < 40 => "bg-warning",
+        < 60 => "bg-info",
+        < 80 => "bg-success",
+        _ => "bg-primary"
+    };
+
+    private string TimeToCrack
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(inputPassword)) return "0 sek.";
+
+            // Przestrzeń poszukiwań: S = PoolSize ^ Length
+            // Prędkość klastra RTX 4090: 100 000 000 000 prób na sekundę (10^11)
+            double combinations = Math.Pow(PoolSize, inputPassword.Length);
+            if (hasCommonPatterns) combinations /= 1000;
+
+            double seconds = (combinations / 2) / 100_000_000_000.0;
+
+            if (seconds < 0.001) return "Ułamek sekundy (Natychmiast)";
+            if (seconds < 60) return $"{seconds:F1} sek.";
+            if (seconds < 3600) return $"{seconds / 60:F0} min.";
+            if (seconds < 86400) return $"{seconds / 3600:F0} godz.";
+            if (seconds < 31_536_000) return $"{seconds / 86400:F0} dni";
+
+            double years = seconds / 31_536_000;
+            if (years < 1000) return $"{years:F0} lat";
+            if (years < 1_000_000) return $"{years / 1000:F0} tys. lat";
+            if (years < 1_000_000_000) return $"{years / 1_000_000:F1} mln lat";
+
+            return $"{years / 1_000_000_000:F1} mld lat 🛡️";
+        }
     }
 }
