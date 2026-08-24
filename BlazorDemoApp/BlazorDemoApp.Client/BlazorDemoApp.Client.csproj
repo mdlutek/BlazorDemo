@@ -13,9 +13,7 @@
   </ItemGroup>
 
   <!-- Zadanie inline liczące wersję dnia -->
-  <UsingTask TaskName="AutoIncrementDailyVersion"
-             TaskFactory="RoslynCodeTaskFactory"
-             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+  <UsingTask TaskName="AutoIncrementDailyVersion" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <CounterFile ParameterType="System.String" Required="true" />
       <ResultVersion ParameterType="System.String" Output="true" />
