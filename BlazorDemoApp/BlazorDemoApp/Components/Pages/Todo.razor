@@ -4,7 +4,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject ILogger<Todo> Logger
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer //@(new InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>Azure Blazor Demo</PageTitle>
 
@@ -101,18 +101,27 @@
     private List<DemoTask>? tasks;
     private string newTaskTitle = string.Empty;
     private string errorMessage = string.Empty;
+    private bool isLoading = true; // Flaga stanu ładowania w tle
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadTasks();
+        // 1. Nie blokujemy metody - strona i formularz pojawiają się NATYCHMIAST (w 0 ms)
+        _ = LoadTasksInBackgroundAsync();
+        await Task.CompletedTask;
     }
 
-    private async Task LoadTasks()
+    private async Task LoadTasksInBackgroundAsync()
     {
+        isLoading = true;
         try
         {
             using var context = await DbFactory.CreateDbContextAsync();
-            tasks = await context.DemoTasks.OrderByDescending(t => t.CreatedAt).ToListAsync();
+
+            // Pobieramy z bazy z wyłączonym śledzeniem (AsNoTracking) dla maksymalnej wydajności
+            tasks = await context.DemoTasks
+                .AsNoTracking()
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
         }
         catch (Exception ex)
         {
@@ -120,13 +129,23 @@
             errorMessage = "Nie udało się pobrać zadań z bazy danych.";
             tasks = new List<DemoTask>();
         }
+        finally
+        {
+            isLoading = false;
+            // 2. Bezpiecznie powiadamiamy wątek UI o nadejściu danych i odświeżamy widok
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task AddTask()
     {
         errorMessage = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
+        if (string.IsNullOrWhiteSpace(newTaskTitle))
+        {
+            errorMessage = "Wpisz treść zadania przed dodaniem!";
+            return;
+        }
 
         try
         {
@@ -150,7 +169,7 @@
             await context.SaveChangesAsync();
 
             newTaskTitle = string.Empty;
-            await LoadTasks();
+            await LoadTasksInBackgroundAsync();
         }
         catch (DbUpdateException ex)
         {
@@ -177,7 +196,7 @@
                 taskInDb.IsCompleted = !taskInDb.IsCompleted;
                 await context.SaveChangesAsync();
             }
-            await LoadTasks();
+            await LoadTasksInBackgroundAsync();
         }
         catch (Exception ex)
         {
@@ -199,7 +218,7 @@
                 context.DemoTasks.Remove(taskInDb);
                 await context.SaveChangesAsync();
             }
-            await LoadTasks();
+            await LoadTasksInBackgroundAsync();
         }
         catch (Exception ex)
         {

@@ -1,0 +1,470 @@
+﻿@page "/azuresql/transactions"
+@using BlazorDemoApp.Models
+@using BlazorDemoApp.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject ILogger<TransactionsGrid> Logger
+@rendermode InteractiveServer //@(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Big Data Grid - Azure SQL</PageTitle>
+
+<div class="container-fluid px-lg-4 mt-4 mb-5">
+    <!-- Nagłówek -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h1>📊 Rejestr Transakcji (Big Data Grid)</h1>
+            <p class="text-muted mb-0">
+                Wielokryterialne filtrowanie i <strong>paginacja serwerowa (Server-Side Paging)</strong> na 10 000+ rekordach w <strong>Azure SQL</strong>.
+            </p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            @if (HasActiveFilters)
+            {
+                <button class="btn btn-outline-danger btn-sm shadow-sm" @onclick="ResetFilters">
+                    ❌ Wyczyść filtry
+                </button>
+            }
+            <span class="badge bg-primary fs-6 px-3 py-2">IQueryable Skip / Take</span>
+        </div>
+    </div>
+
+    <hr />
+
+    <!-- Panel Szczegółowych Filtrów Kolumnowych -->
+    <div class="card shadow-sm p-3 mb-4 bg-light border-0">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold mb-0 text-secondary">🔍 Filtry kolumnowe:</h6>
+            <div class="d-flex align-items-center gap-2">
+                <label class="small text-muted mb-0">Wierszy na stronę:</label>
+                <select class="form-select form-select-sm" style="width: 120px;" @bind="pageSize" @bind:after="ChangePageSize">
+                    <option value="10">10 wierszy</option>
+                    <option value="15">15 wierszy</option>
+                    <option value="25">25 wierszy</option>
+                    <option value="50">50 wierszy</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row g-2">
+            <!-- 1. Zakres Dat (DatePickery) -->
+            <div class="col-md-3 col-sm-6">
+                <label class="form-label small text-muted mb-1">📅 Data (Zakres):</label>
+                <div class="input-group input-group-sm">
+                    <input type="date" class="form-control" @bind="filterDateFrom" @bind:after="ApplyFilters" title="Data od" />
+                    <span class="input-group-text">-</span>
+                    <input type="date" class="form-control" @bind="filterDateTo" @bind:after="ApplyFilters" title="Data do" />
+                </div>
+            </div>
+
+            <!-- 2. Klient (Email) -->
+            <div class="col-md-3 col-sm-6">
+                <label class="form-label small text-muted mb-1">👤 Klient (Email):</label>
+                <input type="text" class="form-control form-control-sm" placeholder="Wpisz fragment emaila..." @bind="filterEmail" @bind:after="ApplyFilters" @onkeyup="HandleKeyUp" />
+            </div>
+
+            <!-- 3. Zakres Kwot (Min - Max) -->
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small text-muted mb-1">💰 Kwota PLN (Min - Max):</label>
+                <div class="input-group input-group-sm">
+                    <input type="number" step="50" class="form-control" placeholder="Min" @bind="filterAmountMin" @bind:after="ApplyFilters" />
+                    <span class="input-group-text">-</span>
+                    <input type="number" step="50" class="form-control" placeholder="Max" @bind="filterAmountMax" @bind:after="ApplyFilters" />
+                </div>
+            </div>
+
+            <!-- 4. Metoda płatności -->
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small text-muted mb-1">💳 Metoda:</label>
+                <select class="form-select form-select-sm" @bind="filterPaymentMethod" @bind:after="ApplyFilters">
+                    <option value="">Wszystkie</option>
+                    <option value="BLIK">BLIK</option>
+                    <option value="Karta Visa">Karta Visa</option>
+                    <option value="Karta Mastercard">Karta Mastercard</option>
+                    <option value="Przelew online (PayU)">Przelew online (PayU)</option>
+                    <option value="Apple Pay">Apple Pay</option>
+                    <option value="Google Pay">Google Pay</option>
+                </select>
+            </div>
+
+            <!-- 5. Status -->
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small text-muted mb-1">📌 Status:</label>
+                <select class="form-select form-select-sm" @bind="filterStatus" @bind:after="ApplyFilters">
+                    <option value="">Wszystkie</option>
+                    <option value="Zakończona">Zakończona</option>
+                    <option value="Oczekująca">Oczekująca</option>
+                    <option value="Odrzucona">Odrzucona</option>
+                </select>
+            </div>
+
+            <!-- 6. Numer transakcji & Opis -->
+            <div class="col-md-6 col-sm-12">
+                <label class="form-label small text-muted mb-1">🔑 Numer transakcji (GUID):</label>
+                <input type="text" class="form-control form-control-sm" placeholder="Wpisz fragment numeru GUID..." @bind="filterTxNumber" @bind:after="ApplyFilters" @onkeyup="HandleKeyUp" />
+            </div>
+
+            <div class="col-md-6 col-sm-12">
+                <label class="form-label small text-muted mb-1">📝 Tytuł operacji / Opis:</label>
+                <input type="text" class="form-control form-control-sm" placeholder="np. zamówienie #1005..." @bind="filterDescription" @bind:after="ApplyFilters" @onkeyup="HandleKeyUp" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Transakcji -->
+    @if (isLoading)
+    {
+        <div class="card shadow-sm p-5 text-center border-0 bg-light my-3">
+            <div class="spinner-border text-primary mx-auto mb-2" role="status"></div>
+            <h5 class="text-muted">Wykonywanie zapytania T-SQL w Azure SQL Database...</h5>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger shadow-sm">
+            <strong>Błąd:</strong> @errorMessage
+            <button class="btn btn-sm btn-outline-danger ms-3" @onclick="() => LoadDataInBackgroundAsync()">Spróbuj ponownie</button>
+        </div>
+    }
+    else if (transactions == null || !transactions.Any())
+    {
+        <div class="alert alert-info shadow-sm p-4 text-center">
+            <h5>Brak wyników!</h5>
+            <p class="mb-0 text-muted">Żadna transakcja nie spełnia wybranych kryteriów. Zmień wartości w filtrach powyżej.</p>
+            <button class="btn btn-outline-primary btn-sm mt-3" @onclick="ResetFilters">Wyczyść filtry</button>
+        </div>
+    }
+    else
+    {
+        <!-- Podsumowanie i Statystyki -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <small class="text-muted">
+                Znaleziono: <strong>@totalCount.ToString("N0")</strong> transakcji
+                (Strona @currentPage z @totalPages, wiersze @(((currentPage - 1) * pageSize) + 1) - @(Math.Min(currentPage * pageSize, totalCount)))
+            </small>
+
+            <small class="text-muted">
+                ⏱️ Czas zapytania SQL: <strong class="text-success">@queryTimeMs ms</strong> (Pobrano tylko @transactions.Count wierszy)
+            </small>
+        </div>
+
+        <div class="table-responsive shadow-sm rounded mb-3">
+            <table class="table table-hover table-bordered align-middle mb-0 bg-white">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="cursor: pointer; width: 170px;" @onclick='() => SortBy("Date")'>
+                            Data @GetSortIcon("Date")
+                        </th>
+                        <th>Numer transakcji</th>
+                        <th style="cursor: pointer;" @onclick='() => SortBy("Email")'>
+                            Klient (Email) @GetSortIcon("Email")
+                        </th>
+                        <th style="cursor: pointer; width: 140px;" @onclick='() => SortBy("Amount")'>
+                            Kwota @GetSortIcon("Amount")
+                        </th>
+                        <th>Metoda</th>
+                        <th style="cursor: pointer; width: 130px;" @onclick='() => SortBy("Status")'>
+                            Status @GetSortIcon("Status")
+                        </th>
+                        <th>Tytuł operacji</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in transactions)
+                    {
+                        <tr>
+                            <td class="text-muted small text-nowrap">
+                                📅 @t.TransactionDate.ToString("dd.MM.yyyy HH:mm")
+                            </td>
+                            <td>
+                                <code class="small text-secondary" title="@t.TransactionNumber">
+                                    @t.TransactionNumber.ToString().Substring(0, 8)...
+                                </code>
+                            </td>
+                            <td class="fw-bold">
+                                @t.CustomerEmail
+                            </td>
+                            <td class="fw-bold text-nowrap @(t.Status == "Odrzucona" ? "text-muted text-decoration-line-through" : "text-primary")">
+                                @t.Amount.ToString("N2") @t.Currency
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border">@t.PaymentMethod</span>
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadge(t.Status)">@t.Status</span>
+                            </td>
+                            <td class="small text-muted text-truncate" style="max-width: 220px;">
+                                @t.Description
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pasek Paginacji -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                Strona <strong>@currentPage</strong> z <strong>@totalPages</strong>
+            </div>
+
+            <nav aria-label="Nawigacja stronami">
+                <ul class="pagination mb-0 shadow-sm">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(1)" title="Pierwsza strona">&laquo;</button>
+                    </li>
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Poprzednia</button>
+                    </li>
+
+                    @foreach (var pageNum in GetVisiblePageNumbers())
+                    {
+                        <li class="page-item @(pageNum == currentPage ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                        </li>
+                    }
+
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Następna</button>
+                    </li>
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(totalPages)" title="Ostatnia strona">&raquo;</button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@code {
+    private List<SystemTransaction>? transactions;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+    private long queryTimeMs = 0;
+
+    // Dedykowane filtry dla każdej kolumny
+    private DateTime? filterDateFrom;
+    private DateTime? filterDateTo;
+    private string filterEmail = string.Empty;
+    private decimal? filterAmountMin;
+    private decimal? filterAmountMax;
+    private string filterPaymentMethod = string.Empty;
+    private string filterStatus = string.Empty;
+    private string filterTxNumber = string.Empty;
+    private string filterDescription = string.Empty;
+
+    private bool HasActiveFilters =>
+        filterDateFrom.HasValue ||
+        filterDateTo.HasValue ||
+        !string.IsNullOrWhiteSpace(filterEmail) ||
+        filterAmountMin.HasValue ||
+        filterAmountMax.HasValue ||
+        !string.IsNullOrWhiteSpace(filterPaymentMethod) ||
+        !string.IsNullOrWhiteSpace(filterStatus) ||
+        !string.IsNullOrWhiteSpace(filterTxNumber) ||
+        !string.IsNullOrWhiteSpace(filterDescription);
+
+    // Parametry paginacji
+    private int currentPage = 1;
+    private int pageSize = 15;
+    private int totalCount = 0;
+    private int totalPages => Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+
+    // Sortowanie
+    private string sortColumn = "Date";
+    private bool sortDescending = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = LoadDataInBackgroundAsync();
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadDataInBackgroundAsync()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            IQueryable<SystemTransaction> query = context.SystemTransactions.AsNoTracking();
+
+            // 1. Filtry Kolumnowe:
+            // Data Od - Do
+            if (filterDateFrom.HasValue)
+            {
+                var fromDate = filterDateFrom.Value.Date;
+                query = query.Where(t => t.TransactionDate >= fromDate);
+            }
+            if (filterDateTo.HasValue)
+            {
+                var toDate = filterDateTo.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(t => t.TransactionDate <= toDate);
+            }
+
+            // Email klienta
+            if (!string.IsNullOrWhiteSpace(filterEmail))
+            {
+                var email = filterEmail.Trim();
+                query = query.Where(t => t.CustomerEmail.Contains(email));
+            }
+
+            // Kwota Min - Max
+            if (filterAmountMin.HasValue)
+            {
+                query = query.Where(t => t.Amount >= filterAmountMin.Value);
+            }
+            if (filterAmountMax.HasValue)
+            {
+                query = query.Where(t => t.Amount <= filterAmountMax.Value);
+            }
+
+            // Metoda płatności
+            if (!string.IsNullOrWhiteSpace(filterPaymentMethod))
+            {
+                query = query.Where(t => t.PaymentMethod == filterPaymentMethod);
+            }
+
+            // Status
+            if (!string.IsNullOrWhiteSpace(filterStatus))
+            {
+                query = query.Where(t => t.Status == filterStatus);
+            }
+
+            // Numer transakcji (GUID)
+            if (!string.IsNullOrWhiteSpace(filterTxNumber))
+            {
+                var tx = filterTxNumber.Trim();
+                query = query.Where(t => t.TransactionNumber.ToString().Contains(tx));
+            }
+
+            // Opis
+            if (!string.IsNullOrWhiteSpace(filterDescription))
+            {
+                var desc = filterDescription.Trim();
+                query = query.Where(t => t.Description != null && t.Description.Contains(desc));
+            }
+
+            // 2. Liczba pasujących rekordów w T-SQL
+            totalCount = await query.CountAsync();
+
+            // 3. Sortowanie
+            query = sortColumn switch
+            {
+                "Amount" => sortDescending ? query.OrderByDescending(t => t.Amount) : query.OrderBy(t => t.Amount),
+                "Email" => sortDescending ? query.OrderByDescending(t => t.CustomerEmail) : query.OrderBy(t => t.CustomerEmail),
+                "Status" => sortDescending ? query.OrderByDescending(t => t.Status) : query.OrderBy(t => t.Status),
+                _ => sortDescending ? query.OrderByDescending(t => t.TransactionDate) : query.OrderBy(t => t.TransactionDate)
+            };
+
+            // 4. Pobranie strony (OFFSET ... ROWS FETCH NEXT ... ROWS ONLY)
+            transactions = await query
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas pobierania transakcji z Azure SQL");
+            errorMessage = "Błąd komunikacji z bazą danych Azure SQL.";
+            transactions = new List<SystemTransaction>();
+        }
+        finally
+        {
+            sw.Stop();
+            queryTimeMs = sw.ElapsedMilliseconds;
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page < 1 || page > totalPages || page == currentPage) return;
+        currentPage = page;
+        await LoadDataInBackgroundAsync();
+    }
+
+    private async Task ChangePageSize()
+    {
+        currentPage = 1;
+        await LoadDataInBackgroundAsync();
+    }
+
+    private async Task ApplyFilters()
+    {
+        currentPage = 1;
+        await LoadDataInBackgroundAsync();
+    }
+
+    private async Task ResetFilters()
+    {
+        filterDateFrom = null;
+        filterDateTo = null;
+        filterEmail = string.Empty;
+        filterAmountMin = null;
+        filterAmountMax = null;
+        filterPaymentMethod = string.Empty;
+        filterStatus = string.Empty;
+        filterTxNumber = string.Empty;
+        filterDescription = string.Empty;
+        currentPage = 1;
+        await LoadDataInBackgroundAsync();
+    }
+
+    private async Task SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortDescending = !sortDescending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortDescending = true;
+        }
+
+        currentPage = 1;
+        await LoadDataInBackgroundAsync();
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ApplyFilters();
+        }
+    }
+
+    private string GetSortIcon(string column)
+    {
+        if (sortColumn != column) return "↕️";
+        return sortDescending ? "↓" : "↑";
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Zakończona" => "bg-success",
+        "Oczekująca" => "bg-warning text-dark",
+        "Odrzucona" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private IEnumerable<int> GetVisiblePageNumbers()
+    {
+        int start = Math.Max(1, currentPage - 2);
+        int end = Math.Min(totalPages, start + 4);
+
+        if (end - start < 4)
+        {
+            start = Math.Max(1, end - 4);
+        }
+
+        for (int i = start; i <= end; i++)
+        {
+            yield return i;
+        }
+    }
+}

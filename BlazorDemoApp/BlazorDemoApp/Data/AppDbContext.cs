@@ -8,5 +8,6 @@ namespace BlazorDemoApp.Data
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         public DbSet<DemoTask> DemoTasks => Set<DemoTask>();
+        public DbSet<SystemTransaction> SystemTransactions => Set<SystemTransaction>();
     }
 }
