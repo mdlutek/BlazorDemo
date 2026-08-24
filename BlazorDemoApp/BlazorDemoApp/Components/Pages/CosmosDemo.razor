@@ -3,7 +3,7 @@
 @using Microsoft.Azure.Cosmos
 @inject CosmosClient CosmosClient
 @inject ILogger<CosmosDemo> Logger
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer //@(new InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>Azure Cosmos DB Demo</PageTitle>
 
@@ -28,7 +28,7 @@
             @if (!string.IsNullOrEmpty(errorMessage))
             {
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    @errorMessage
+                    <strong>Uwaga!</strong> @errorMessage
                     <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
                 </div>
             }
@@ -45,7 +45,7 @@
             </div>
 
             <div class="mb-2">
-                <label class="form-label small text-muted">Tytuł wpisu (maks. 50 znaków):</label>
+                <label class="form-label small text-muted">Tytuł wpisu * (maks. 50 znaków):</label>
                 <input type="text" class="form-control" placeholder="np. Wdrożenie mikroserwisów" @bind="newTitle" maxlength="50" />
             </div>
 
@@ -72,9 +72,12 @@
 
     <!-- Lista wpisów z Cosmos DB -->
     <h3 class="mb-3">Dokumenty w kontenerze:</h3>
-    @if (notes == null)
+    @if (isLoading || notes == null)
     {
-        <p><em>Ładowanie dokumentów z Azure Cosmos DB...</em></p>
+        <div class="d-flex align-items-center gap-2 p-4 bg-light rounded border mb-3 text-muted">
+            <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+            <span>Pobieranie dokumentów z Azure Cosmos DB...</span>
+        </div>
     }
     else if (!notes.Any())
     {
@@ -126,6 +129,7 @@
 @code {
     private Container? container;
     private List<CosmosNote>? notes;
+    private bool isLoading = true; // Flaga stanu ładowania w tle
     private string newCategory = "Azure";
     private string newTitle = string.Empty;
     private string newContent = string.Empty;
@@ -134,10 +138,18 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // 1. Nie blokujemy metody - strona pojawia się natychmiast (w 0 ms)
+        _ = LoadNotesInBackgroundAsync();
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadNotesInBackgroundAsync()
+    {
+        isLoading = true;
         try
         {
             // Uzyskujemy dostęp do bazy 'CosmosDemoDb' i kontenera 'Notes'
-            container = CosmosClient.GetContainer("CosmosDemoDb", "Notes");
+            container ??= CosmosClient.GetContainer("CosmosDemoDb", "Notes");
             await LoadNotes();
         }
         catch (Exception ex)
@@ -145,6 +157,12 @@
             Logger.LogError(ex, "Błąd inicjalizacji połączenia z Cosmos DB");
             errorMessage = "Nie udało się połączyć z Azure Cosmos DB.";
             notes = new List<CosmosNote>();
+        }
+        finally
+        {
+            isLoading = false;
+            // 2. Bezpiecznie powiadamiamy wątek UI o nadejściu danych
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -178,7 +196,14 @@
     private async Task AddNote()
     {
         errorMessage = string.Empty;
-        if (string.IsNullOrWhiteSpace(newTitle) || container == null) return;
+
+        if (string.IsNullOrWhiteSpace(newTitle))
+        {
+            errorMessage = "Pole „Tytuł wpisu” jest wymagane!";
+            return;
+        }
+
+        if (container == null) return;
 
         try
         {

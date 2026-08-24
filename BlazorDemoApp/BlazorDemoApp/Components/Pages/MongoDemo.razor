@@ -3,7 +3,7 @@
 @using MongoDB.Driver
 @inject IMongoClient MongoClient
 @inject ILogger<MongoDemo> Logger
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer //@(new InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>MongoDB NoSQL Demo</PageTitle>
 
@@ -28,13 +28,13 @@
             @if (!string.IsNullOrEmpty(errorMessage))
             {
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    @errorMessage
+                    <strong>Uwaga!</strong> @errorMessage
                     <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
                 </div>
             }
 
             <div class="mb-2">
-                <label class="form-label small text-muted">Nazwa produktu (maks. 50 znaków):</label>
+                <label class="form-label small text-muted">Nazwa produktu * (maks. 50 znaków):</label>
                 <input type="text" class="form-control" placeholder="np. Laptop Dell XPS" @bind="newProductName" maxlength="50" />
             </div>
 
@@ -57,9 +57,12 @@
 
     <!-- Lista dokumentów z MongoDB -->
     <h3 class="mb-3">Dokumenty w kolekcji:</h3>
-    @if (products == null)
+    @if (isLoading || products == null)
     {
-        <p><em>Ładowanie dokumentów z MongoDB Atlas...</em></p>
+        <div class="d-flex align-items-center gap-2 p-4 bg-light rounded border mb-3 text-muted">
+            <div class="spinner-border spinner-border-sm text-success" role="status"></div>
+            <span>Pobieranie dokumentów z MongoDB Atlas...</span>
+        </div>
     }
     else if (!products.Any())
     {
@@ -116,6 +119,7 @@
 @code {
     private IMongoCollection<MongoProduct>? collection;
     private List<MongoProduct>? products;
+    private bool isLoading = true; // Flaga stanu ładowania w tle
     private string newProductName = string.Empty;
     private decimal newProductPrice = 0;
     private string tagsInput = string.Empty;
@@ -123,6 +127,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // 1. Nie blokujemy metody - strona i formularz pojawiają się natychmiast (w 0 ms)
+        _ = LoadProductsInBackgroundAsync();
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadProductsInBackgroundAsync()
+    {
+        isLoading = true;
         try
         {
             var database = MongoClient.GetDatabase("DemoStore");
@@ -135,6 +147,12 @@
             Logger.LogError(ex, "Błąd podczas inicjalizacji połączenia z MongoDB");
             errorMessage = "Nie udało się połączyć z bazą MongoDB Atlas.";
             products = new List<MongoProduct>();
+        }
+        finally
+        {
+            isLoading = false;
+            // 2. Bezpiecznie powiadamiamy wątek UI o nadejściu danych
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -159,7 +177,14 @@
     private async Task AddProduct()
     {
         errorMessage = string.Empty;
-        if (string.IsNullOrWhiteSpace(newProductName) || collection == null) return;
+
+        if (string.IsNullOrWhiteSpace(newProductName))
+        {
+            errorMessage = "Pole „Nazwa produktu” jest wymagane!";
+            return;
+        }
+
+        if (collection == null) return;
 
         if (newProductPrice < 0 || newProductPrice > 999999.99m)
         {
@@ -179,8 +204,8 @@
             // Przetwarzanie i obcinanie zbyt długich pojedynczych tagów
             var tagList = tagsInput
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(t => t.Length > 20 ? t.Substring(0, 20) : t) // max 20 znaków na 1 tag
-                .Take(6) // max 6 tagów na produkt
+                .Select(t => t.Length > 20 ? t.Substring(0, 20) : t)
+                .Take(6)
                 .ToList();
 
             var product = new MongoProduct

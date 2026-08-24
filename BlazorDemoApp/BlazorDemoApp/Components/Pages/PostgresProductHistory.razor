@@ -5,7 +5,7 @@
 @using System.Text.Json
 @inject IDbContextFactory<PostgresDbContext> DbFactory
 @inject ILogger<PostgresProductHistory> Logger
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer //@(new InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>Historia Zmian Produktu - Audit Log</PageTitle>
 
@@ -29,7 +29,10 @@
 
     @if (isLoading)
     {
-        <p><em>Ładowanie historii audytu z PostgreSQL...</em></p>
+        <div class="d-flex align-items-center gap-2 p-4 bg-light rounded border mb-3 text-muted">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            <span>Pobieranie historii audytu z bazy PostgreSQL...</span>
+        </div>
     }
     else if (auditLogs == null || !auditLogs.Any())
     {
@@ -85,19 +88,30 @@
 
     private PostgresProduct? product;
     private List<PostgresAuditLog>? auditLogs;
-    private bool isLoading = true;
+    private bool isLoading = true; // Flaga stanu ładowania w tle
 
     protected override async Task OnInitializedAsync()
     {
+        // 1. Nie blokujemy metody - strona pojawia się natychmiast (w 0 ms)
+        _ = LoadHistoryInBackgroundAsync();
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadHistoryInBackgroundAsync()
+    {
+        isLoading = true;
         try
         {
             using var context = await DbFactory.CreateDbContextAsync();
 
-            // 1. Pobierz podstawowe dane produktu
-            product = await context.Products.FindAsync(Id);
+            // 1. Pobierz podstawowe dane produktu (AsNoTracking)
+            product = await context.Products
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == Id);
 
-            // 2. Pobierz historię z tabeli audit_logs zarejestrowaną przez Trigger
+            // 2. Pobierz historię z tabeli audit_logs zarejestrowaną przez Trigger (AsNoTracking)
             auditLogs = await context.AuditLogs
+                .AsNoTracking()
                 .Where(l => l.TableName == "products" && l.RecordId == Id)
                 .OrderByDescending(l => l.PerformedAt)
                 .ToListAsync();
@@ -105,10 +119,13 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Błąd podczas pobierania historii audytu dla ID {ProductId}", Id);
+            auditLogs = new List<PostgresAuditLog>();
         }
         finally
         {
             isLoading = false;
+            // 2. Bezpiecznie powiadamiamy wątek UI o nadejściu danych
+            await InvokeAsync(StateHasChanged);
         }
     }
 
