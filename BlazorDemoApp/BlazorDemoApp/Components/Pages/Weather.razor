@@ -14,7 +14,7 @@
     <!-- Nagłówek -->
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-            <h1>⛅ Stacja Pogodowa & Wyszukiwarka</h1>
+            <h1>⛅ Stacja pogodowa</h1>
             <p class="text-muted mb-0">
                 Wyszukuj dowolne miejscowości na świecie i zapisuj swoje ulubione miasto.
             </p>
@@ -139,10 +139,10 @@
                 </div>
             </div>
 
-            <!-- Karty dni: Wczoraj (Historia) + Dzisiaj + Prognoza -->
+            <!-- Karty dni: Dzisiaj + Prognoza -->
             <div class="col-lg-6">
                 <div class="card h-100 shadow-sm border-0 bg-light p-3">
-                    <h5 class="fw-bold mb-3 text-secondary">📅 Zestawienie: Wczoraj + Prognoza na kolejne dni</h5>
+                    <h5 class="fw-bold mb-3 text-secondary">📅 Prognoza na kolejne 5 dni</h5>
 
                     @if (weatherData.Daily != null)
                     {
@@ -164,7 +164,7 @@
                                         </div>
                                     </div>
                                     <div class="text-end">
-                                        <span class="fw-bold fs-5 text-danger">@maxTemp.ToString("F0")°</span>
+                                        <span class="fw-bold fs-5">@maxTemp.ToString("F0")°</span>
                                         <span class="text-muted fs-6 ms-1">/ @minTemp.ToString("F0")°C</span>
                                     </div>
                                 </div>
@@ -175,32 +175,52 @@
             </div>
         </div>
 
-        <!-- Rozkład temperatur w ciągu ostatnich i najbliższych godzin -->
+        <!-- Rozkład temperatur: Teraz + następne 12h -->
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body p-4">
-                <h5 class="fw-bold text-secondary mb-3">🕒 Przebieg temperatur (Ostatnie 24h & Najbliższe godziny):</h5>
+                <h5 class="fw-bold text-secondary mb-3">🕒 Prognoza godzinowa (Następne 18h):</h5>
 
                 @if (weatherData.Hourly != null)
                 {
+                    // Indeks aktualnej godziny to po prostu bieżąca godzina z zegara (np. o 15:30 -> indeks 15)
+                    var startIndex = DateTime.Now.Hour;
+
                     <div class="d-flex overflow-auto gap-2 py-2" style="scrollbar-width: thin;">
-                        @for (int i = 0; i < weatherData.Hourly.Time.Count; i += 3)
+                        @for (int i = startIndex; i < startIndex + 19 && i < weatherData.Hourly.Time.Count; i++)
                         {
                             var timeStr = weatherData.Hourly.Time[i];
                             var temp = weatherData.Hourly.Temperature[i];
                             var code = weatherData.Hourly.WeatherCode[i];
                             var timeParsed = DateTime.Parse(timeStr);
-                            var isNow = Math.Abs((timeParsed - DateTime.UtcNow).TotalHours) < 1.5;
+
+                            var isNow = (i == startIndex);
                             var isDayHour = weatherData.Hourly.IsDay.Count > i ? weatherData.Hourly.IsDay[i] == 1 : (timeParsed.Hour >= 6 && timeParsed.Hour < 21);
 
-                            <div class="card p-2 text-center flex-shrink-0 @(isNow ? "border-primary bg-primary bg-opacity-10" : "bg-light border-0")" style="width: 85px;">
+                            <div class="card p-2 text-center flex-shrink-0 @(isNow ? "border-primary bg-primary bg-opacity-10 shadow-sm" : "bg-light border-0")" style="width: 90px; min-width: 90px;">
                                 <small class="text-muted">@timeParsed.ToString("dd.MM")</small>
-                                <strong class="@(isNow ? "text-primary" : "")">@timeParsed.ToString("HH:mm")</strong>
+                                <strong class="@(isNow ? "text-primary" : "")">
+                                    @(isNow ? "Teraz" : timeParsed.ToString("HH:mm"))
+                                </strong>
                                 <span class="fs-4 my-1">@GetWeatherIcon(code, isDayHour)</span>
                                 <span class="fw-bold">@temp.ToString("F0")°C</span>
                             </div>
                         }
                     </div>
                 }
+            </div>
+        </div>
+
+        <!-- Aktywny Wykres Multimetryczny (Temperatura + Wilgotność + Ciśnienie) -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-secondary mb-0">📊 Wykres parametrów w czasie (Następne 18h):</h5>
+                    <small class="text-muted">Kliknij w pozycję legendy, aby ukryć/pokazać linię</small>
+                </div>
+
+                <div style="height: 320px; position: relative;">
+                    <canvas id="weatherChart"></canvas>
+                </div>
             </div>
         </div>
     }
@@ -210,6 +230,7 @@
     private bool isLoading = true;
     private bool isSearching = false;
     private bool isSearchEmpty = false;
+    private bool shouldRenderChart = false;
     private string searchQuery = string.Empty;
     private string lastSearchedQuery = string.Empty;
     private string errorMessage = string.Empty;
@@ -260,6 +281,13 @@
 
             await LoadWeatherData(selectedCity);
             StateHasChanged();
+        }
+
+        // Gdy dane są gotowe i <canvas> pojawił się w przeglądarce -> narysuj wykres!
+        if (shouldRenderChart && weatherData?.Hourly != null)
+        {
+            shouldRenderChart = false;
+            await RenderChartAsync();
         }
     }
 
@@ -336,9 +364,10 @@
 
         try
         {
-            var url = $"https://api.open-meteo.com/v1/forecast?latitude={city.Lat.ToString(CultureInfo.InvariantCulture)}&longitude={city.Lon.ToString(CultureInfo.InvariantCulture)}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&past_days=1&forecast_days=3";
+            var url = $"https://api.open-meteo.com/v1/forecast?latitude={city.Lat.ToString(CultureInfo.InvariantCulture)}&longitude={city.Lon.ToString(CultureInfo.InvariantCulture)}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,relative_humidity_2m,surface_pressure,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5";
 
             weatherData = await Http.GetFromJsonAsync<WeatherApiResponse>(url);
+            shouldRenderChart = true; // Zgłaszamy gotowość do narysowania wykresu
         }
         catch (Exception ex)
         {
@@ -349,18 +378,58 @@
         {
             isLoading = false;
         }
+
+        // Po wyrenderowaniu HTML odpalamy rysowanie wykresu w Chart.js
+        if (weatherData?.Hourly != null)
+        {
+            await Task.Delay(50); // małe opóźnienie, aby element <canvas> zdążył się pojawić w DOM
+            await RenderChartAsync();
+        }
+    }
+
+    private async Task RenderChartAsync()
+    {
+        if (weatherData?.Hourly == null) return;
+
+        var startHour = DateTime.Now.Hour;
+        const int hoursCount = 19; // Wykres dla najbliższej doby (18 godziny)
+
+        var labels = new List<string>();
+        var temps = new List<double>();
+        var humidities = new List<int>();
+        var pressures = new List<double>();
+
+        for (int i = startHour; i < startHour + hoursCount && i < weatherData.Hourly.Time.Count; i++)
+        {
+            var timeParsed = DateTime.Parse(weatherData.Hourly.Time[i]);
+            labels.Add(i == startHour ? "Teraz" : timeParsed.ToString("HH:mm"));
+            temps.Add(weatherData.Hourly.Temperature[i]);
+            humidities.Add(weatherData.Hourly.Humidity[i]);
+            pressures.Add(weatherData.Hourly.SurfacePressure[i]);
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("renderWeatherChart", "weatherChart", labels, temps, humidities, pressures);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Błąd podczas renderowania wykresu Chart.js");
+        }
     }
 
     private string GetDayLabel(string dateStr, int index)
     {
         var date = DateTime.Parse(dateStr).Date;
-        var today = DateTime.UtcNow.Date;
+        var today = DateTime.Today;
 
-        if (date == today.AddDays(-1)) return "Wczoraj";
         if (date == today) return "Dzisiaj";
         if (date == today.AddDays(1)) return "Jutro";
         if (date == today.AddDays(2)) return "Pojutrze";
-        return date.ToString("dddd");
+
+        // Zwraca np. "piątek", "sobota" z dużej litery
+        var dayName = date.ToString("dddd", new CultureInfo("pl-PL"));
+        return char.ToUpper(dayName[0]) + dayName.Substring(1);
     }
 
     private MarkupString GetWeatherIcon(int code, bool isDay = true)

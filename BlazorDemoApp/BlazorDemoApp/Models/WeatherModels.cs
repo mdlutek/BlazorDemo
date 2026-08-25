@@ -89,6 +89,12 @@ namespace BlazorDemoApp.Models
         [JsonPropertyName("temperature_2m")]
         public List<double> Temperature { get; set; } = new();
 
+        [JsonPropertyName("relative_humidity_2m")]
+        public List<int> Humidity { get; set; } = new();
+
+        [JsonPropertyName("surface_pressure")]
+        public List<double> SurfacePressure { get; set; } = new();
+
         [JsonPropertyName("weather_code")]
         public List<int> WeatherCode { get; set; } = new();
 

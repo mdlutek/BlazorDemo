@@ -35,6 +35,112 @@
             if (bar) bar.style.display = 'none';
         });
     </script>
+
+    <!-- Biblioteka Chart.js z CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+            window.weatherChartInstance = null;
+
+            // Funkcja renderująca aktywny wykres z 3 osiami Y (Temperatura, Wilgotność, Ciśnienie)
+            window.renderWeatherChart = (canvasId, labels, tempData, humidityData, pressureData) => {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+
+                // Zniszcz poprzedni wykres jeśli istnieje (np. po zmianie miasta)
+                if (window.weatherChartInstance) {
+                    window.weatherChartInstance.destroy();
+                }
+
+                window.weatherChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: '🌡️ Temperatura (°C)',
+                                data: tempData,
+                                borderColor: '#ff6384',
+                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                yAxisID: 'yTemp',
+                                tension: 0.35,
+                                fill: true,
+                                borderWidth: 2.5
+                            },
+                            {
+                                label: '💧 Wilgotność (%)',
+                                data: humidityData,
+                                borderColor: '#0dcaf0',
+                                backgroundColor: 'transparent',
+                                yAxisID: 'yHumidity',
+                                tension: 0.35,
+                                borderWidth: 2,
+                                borderDash: [4, 4]
+                            },
+                            {
+                                label: '🧭 Ciśnienie (hPa)',
+                                data: pressureData,
+                                borderColor: '#a855f7',
+                                backgroundColor: 'transparent',
+                                yAxisID: 'yPressure',
+                                tension: 0.35,
+                                borderWidth: 2
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    boxWidth: 14,
+                                    font: { size: 12, weight: 'bold' }
+                                }
+                            },
+                            tooltip: {
+                                padding: 10,
+                                boxPadding: 4
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false }
+                            },
+                            yTemp: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: { display: true, text: 'Temperatura (°C)', color: '#ff6384' },
+                                grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                            },
+                            yHumidity: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                min: 0,
+                                max: 100,
+                                title: { display: true, text: 'Wilgotność (%)', color: '#0dcaf0' },
+                                grid: { drawOnChartArea: false }
+                            },
+                            yPressure: {
+                                type: 'linear',
+                                display: false, // Oś ukryta wizualnie, ale linia skaluje się automatycznie
+                                position: 'right',
+                                grid: { drawOnChartArea: false }
+                            }
+                        }
+                    }
+                });
+            };
+    </script>
 </body>
 
 </html>
