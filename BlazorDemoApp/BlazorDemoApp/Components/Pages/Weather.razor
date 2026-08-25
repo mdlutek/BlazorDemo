@@ -6,7 +6,7 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject ILogger<Weather> Logger
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer
 
 <PageTitle>Stacja Pogodowa na Żywo - Open-Meteo</PageTitle>
 
@@ -14,9 +14,9 @@
     <!-- Nagłówek -->
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-            <h1>⛅ Stacja pogodowa</h1>
+            <h1>⛅ Stacja pogodowa i jakość powietrza</h1>
             <p class="text-muted mb-0">
-                Wyszukuj dowolne miejscowości na świecie i zapisuj swoje ulubione miasto.
+                Pobieranie danych meteorologicznych oraz wskaźników smogu (Copernicus CAMS) na żywo z <strong>Open-Meteo</strong>.
             </p>
         </div>
         <span class="badge bg-primary fs-6 px-3 py-2">Open-Meteo & LocalStorage</span>
@@ -223,6 +223,156 @@
                 </div>
             </div>
         </div>
+
+        <!-- ========================================================================= -->
+        <!-- DUŻY KAFELEK: JAKOŚĆ POWIETRZA, SMOG, ALERGENY & INDEKS UV (Cała szerokość) -->
+        <!-- ========================================================================= -->
+        @if (airQualityData?.Current != null)
+        {
+            var aqi = airQualityData.Current.EuropeanAqi ?? 20;
+            var pm25 = airQualityData.Current.Pm25 ?? 0;
+            var pm10 = airQualityData.Current.Pm10 ?? 0;
+            var uv = airQualityData.Current.UvIndex ?? 0;
+            var no2 = airQualityData.Current.NitrogenDioxide ?? 0;
+            var o3 = airQualityData.Current.Ozone ?? 0;
+            var co = airQualityData.Current.CarbonMonoxide ?? 0;
+            var so2 = airQualityData.Current.SulphurDioxide ?? 0;
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <!-- Nagłówek sekcji powietrza -->
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fs-3">🌿</span>
+                            <div>
+                                <h4 class="fw-bold mb-0 text-dark">Jakość Powietrza, Smog, Pyłki</h4>
+                                <small class="text-muted">Dane satelitarne Copernicus CAMS dla: <strong>@selectedCity.Name</strong></small>
+                            </div>
+                        </div>
+                        <span class="badge @GetAqiBadgeClass(aqi) fs-6 px-3 py-2">
+                            Indeks AQI: @aqi.ToString("F0") / 100 • @GetAqiText(aqi)
+                        </span>
+                    </div>
+
+                    <!-- Główny baner ze statusem i poradą zdrowotną -->
+                    <div class="p-3 rounded-3 mb-4 border @GetAqiAlertClass(aqi)">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="fs-1">@GetAqiEmoji(aqi)</span>
+                            <div>
+                                <h5 class="fw-bold mb-1">Jakość powietrza: @GetAqiText(aqi)</h5>
+                                <p class="mb-0 small">@GetAqiRecommendation(aqi)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Siatka 4 szczegółowych sekcji -->
+                    <div class="row g-3">
+                        <!-- 1. Główne pyły zawieszone (Smog: PM2.5 i PM10) -->
+                        <div class="col-lg-3 col-md-6">
+                            <div class="p-3 bg-light rounded h-100 border">
+                                <h6 class="fw-bold text-secondary mb-3">🌫️ Pyły zawieszone (Smog)</h6>
+
+                                <!-- PM2.5 -->
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span>PM2.5 (Wnika do krwi):</span>
+                                        <strong>@pm25.ToString("F1") µg/m³</strong>
+                                    </div>
+                                    <div class="progress" style="height: 6px;" title="Norma dobowa WHO: 15 µg/m³">
+                                        <div class="progress-bar @(pm25 > 15 ? "bg-danger" : "bg-success")" style="width: @Math.Min(100, (int)(pm25 / 15 * 100))%"></div>
+                                    </div>
+                                    <small class="text-muted" style="font-size: 0.75rem;">
+                                        @(pm25 <= 15 ? "🟢 W normie WHO (max 15)" : $"🔴 {((pm25 / 15) * 100):F0}% normy WHO")
+                                    </small>
+                                </div>
+
+                                <!-- PM10 -->
+                                <div>
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span>PM10 (Pył i kurz):</span>
+                                        <strong>@pm10.ToString("F1") µg/m³</strong>
+                                    </div>
+                                    <div class="progress" style="height: 6px;" title="Norma dobowa WHO: 45 µg/m³">
+                                        <div class="progress-bar @(pm10 > 45 ? "bg-danger" : "bg-success")" style="width: @Math.Min(100, (int)(pm10 / 45 * 100))%"></div>
+                                    </div>
+                                    <small class="text-muted" style="font-size: 0.75rem;">
+                                        @(pm10 <= 45 ? "🟢 W normie WHO (max 45)" : $"🔴 {((pm10 / 45) * 100):F0}% normy WHO")
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Gazy i Zanieczyszczenia chemiczne -->
+                        <div class="col-lg-3 col-md-6">
+                            <div class="p-3 bg-light rounded h-100 border">
+                                <h6 class="fw-bold text-secondary mb-3">🚗 Gazy i spaliny</h6>
+                                <ul class="list-unstyled mb-0 small">
+                                    <li class="d-flex justify-content-between py-1 border-bottom">
+                                        <span title="Dwutlenek azotu (głównie spaliny aut)">NO₂ (Spaliny):</span>
+                                        <span class="badge @(no2 > 50 ? "bg-warning text-dark" : "bg-light text-dark border")">@no2.ToString("F1") µg/m³</span>
+                                    </li>
+                                    <li class="d-flex justify-content-between py-1 border-bottom">
+                                        <span title="Ozon przyziemny">O₃ (Ozon):</span>
+                                        <span class="badge @(o3 > 100 ? "bg-warning text-dark" : "bg-light text-dark border")">@o3.ToString("F1") µg/m³</span>
+                                    </li>
+                                    <li class="d-flex justify-content-between py-1 border-bottom">
+                                        <span title="Tlenek węgla (czad)">CO (Czad):</span>
+                                        <span class="badge bg-light text-dark border">@co.ToString("F0") µg/m³</span>
+                                    </li>
+                                    <li class="d-flex justify-content-between py-1">
+                                        <span title="Dwutlenek siarki (przemysł/piece)">SO₂ (Siarka):</span>
+                                        <span class="badge bg-light text-dark border">@so2.ToString("F1") µg/m³</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- 3. Promieniowanie Słoneczne & UV -->
+                        <div class="col-lg-3 col-md-6">
+                            <div class="p-3 bg-light rounded h-100 border d-flex flex-column justify-content-between">
+                                <div>
+                                    <h6 class="fw-bold text-secondary mb-2">☀️ Indeks UV (Słońce)</h6>
+                                    <div class="d-flex align-items-center gap-2 my-2">
+                                        <span class="display-6 fw-bold @GetUvColor(uv)">@uv.ToString("F1")</span>
+                                        <div>
+                                            <span class="badge @GetUvBadgeClass(uv)">@GetUvText(uv)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-2 bg-white rounded border small text-muted">
+                                    💡 @GetUvAdvice(uv)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Pylenie Roślin & Alergie -->
+                        <div class="col-lg-3 col-md-6">
+                            <div class="p-3 bg-light rounded h-100 border">
+                                <h6 class="fw-bold text-secondary mb-3">🌾 Strefa alergika (Pyłki)</h6>
+                                <ul class="list-unstyled mb-0 small">
+                                    <li class="d-flex justify-content-between py-1 border-bottom">
+                                        <span>🌿 Trawy:</span>
+                                        <span class="badge @GetPollenBadge(airQualityData.Current.GrassPollen)">@GetPollenText(airQualityData.Current.GrassPollen)</span>
+                                    </li>
+                                    <li class="d-flex justify-content-between py-1 border-bottom">
+                                        <span>🌳 Brzoza:</span>
+                                        <span class="badge @GetPollenBadge(airQualityData.Current.BirchPollen)">@GetPollenText(airQualityData.Current.BirchPollen)</span>
+                                    </li>
+                                    <li class="d-flex justify-content-between py-1 border-bottom">
+                                        <span>🌲 Olsza:</span>
+                                        <span class="badge @GetPollenBadge(airQualityData.Current.AlderPollen)">@GetPollenText(airQualityData.Current.AlderPollen)</span>
+                                    </li>
+                                    <li class="d-flex justify-content-between py-1">
+                                        <span>🌱 Ambrozja:</span>
+                                        <span class="badge @GetPollenBadge(airQualityData.Current.RagweedPollen)">@GetPollenText(airQualityData.Current.RagweedPollen)</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     }
 </div>
 
@@ -235,6 +385,7 @@
     private string lastSearchedQuery = string.Empty;
     private string errorMessage = string.Empty;
     private WeatherApiResponse? weatherData;
+    private AirQualityApiResponse? airQualityData;
     private List<GeocodingResult>? searchResults;
     private CityInfo selectedCity = default!;
 
@@ -364,10 +515,21 @@
 
         try
         {
-            var url = $"https://api.open-meteo.com/v1/forecast?latitude={city.Lat.ToString(CultureInfo.InvariantCulture)}&longitude={city.Lon.ToString(CultureInfo.InvariantCulture)}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,relative_humidity_2m,surface_pressure,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5";
+            var latStr = city.Lat.ToString(CultureInfo.InvariantCulture);
+            var lonStr = city.Lon.ToString(CultureInfo.InvariantCulture);
 
-            weatherData = await Http.GetFromJsonAsync<WeatherApiResponse>(url);
-            shouldRenderChart = true; // Zgłaszamy gotowość do narysowania wykresu
+            var weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={latStr}&longitude={lonStr}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,relative_humidity_2m,surface_pressure,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5";
+            var airQualityUrl = $"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={latStr}&longitude={lonStr}&current=european_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,uv_index,dust,alder_pollen,birch_pollen,grass_pollen,ragweed_pollen&timezone=auto";
+
+            // Równoległe pobieranie pogody i jakości powietrza (Task.WhenAll)
+            var weatherTask = Http.GetFromJsonAsync<WeatherApiResponse>(weatherUrl);
+            var airQualityTask = Http.GetFromJsonAsync<AirQualityApiResponse>(airQualityUrl);
+
+            await Task.WhenAll(weatherTask, airQualityTask);
+
+            weatherData = await weatherTask;
+            airQualityData = await airQualityTask;
+            shouldRenderChart = true;
         }
         catch (Exception ex)
         {
@@ -495,5 +657,104 @@
         _ => "Umiarkowanie"
     };
 
-    
+    // ==========================================
+    // POMOCNIKI DLA JAKOŚCI POWIETRZA (AQI & SMOG)
+    // ==========================================
+
+    private string GetAqiText(double aqi) => aqi switch
+    {
+        <= 20 => "Bardzo dobra",
+        <= 40 => "Dobra",
+        <= 60 => "Umiarkowana",
+        <= 80 => "Dostateczna",
+        <= 100 => "Zła",
+        _ => "Bardzo zła / Smog"
+    };
+
+    private string GetAqiEmoji(double aqi) => aqi switch
+    {
+        <= 20 => "🟢",
+        <= 40 => "🟡",
+        <= 60 => "🟠",
+        <= 80 => "🔴",
+        _ => "🟣"
+    };
+
+    private string GetAqiBadgeClass(double aqi) => aqi switch
+    {
+        <= 20 => "bg-success",
+        <= 40 => "bg-info text-dark",
+        <= 60 => "bg-warning text-dark",
+        <= 80 => "bg-danger",
+        _ => "bg-dark"
+    };
+
+    private string GetAqiAlertClass(double aqi) => aqi switch
+    {
+        <= 20 => "bg-success bg-opacity-10 border-success text-success",
+        <= 40 => "bg-info bg-opacity-10 border-info text-dark",
+        <= 60 => "bg-warning bg-opacity-10 border-warning text-dark",
+        <= 80 => "bg-danger bg-opacity-10 border-danger text-danger",
+        _ => "bg-dark bg-opacity-25 border-dark text-danger"
+    };
+
+    private string GetAqiRecommendation(double aqi) => aqi switch
+    {
+        <= 20 => "Jakość powietrza jest znakomita. Idealne warunki na uprawianie sportu, spacery i wietrzenie domu.",
+        <= 40 => "Jakość powietrza zadowalająca. Zanieczyszczenia nie stanowią zagrożenia dla zdrowia.",
+        <= 60 => "Jakość umiarkowana. Osoby wrażliwe, starsze i dzieci mogą odczuwać lekki dyskomfort.",
+        <= 80 => "Jakość niska. Unikaj intensywnego wysiłku na zewnątrz. Osoby z astmą powinny zachować ostrożność.",
+        _ => "Zanieczyszczenie wysokie (Smog)! Ogranicz przebywanie na zewnątrz do minimum, zamknij okna."
+    };
+
+    private string GetUvText(double uv) => uv switch
+    {
+        <= 2 => "Niski",
+        <= 5 => "Umiarkowany",
+        <= 7 => "Wysoki",
+        <= 10 => "Bardzo wysoki",
+        _ => "Ekstremalny"
+    };
+
+    private string GetUvColor(double uv) => uv switch
+    {
+        <= 2 => "text-success",
+        <= 5 => "text-warning",
+        <= 7 => "text-danger",
+        _ => "text-primary"
+    };
+
+    private string GetUvBadgeClass(double uv) => uv switch
+    {
+        <= 2 => "bg-success",
+        <= 5 => "bg-warning text-dark",
+        <= 7 => "bg-danger",
+        _ => "bg-dark"
+    };
+
+    private string GetUvAdvice(double uv) => uv switch
+    {
+        <= 2 => "Brak potrzeby ochrony przeciwsłonecznej.",
+        <= 5 => "Zalecane okulary przeciwsłoneczne i nakrycie głowy.",
+        <= 7 => "Użyj kremu z filtrem SPF 30+, unikaj słońca w południe.",
+        _ => "Chroń skórę i oczy, przebywaj w cieniu."
+    };
+
+    private string GetPollenText(double? val)
+    {
+        var v = val ?? 0;
+        if (v == 0) return "Brak";
+        if (v <= 10) return "Niskie";
+        if (v <= 50) return "Średnie";
+        return "Wysokie";
+    }
+
+    private string GetPollenBadge(double? val)
+    {
+        var v = val ?? 0;
+        if (v == 0) return "bg-light text-muted border";
+        if (v <= 10) return "bg-success";
+        if (v <= 50) return "bg-warning text-dark";
+        return "bg-danger";
+    }
 }

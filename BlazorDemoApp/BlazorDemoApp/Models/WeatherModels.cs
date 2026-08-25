@@ -2,7 +2,58 @@
 
 namespace BlazorDemoApp.Models
 {
-    // Modele API
+    // ==========================================
+    // MODELE DANYCH Z API
+    // ==========================================
+
+    public class AirQualityApiResponse
+    {
+        [JsonPropertyName("current")]
+        public CurrentAirQuality? Current { get; set; }
+    }
+
+    public class CurrentAirQuality
+    {
+        [JsonPropertyName("time")]
+        public string Time { get; set; } = string.Empty;
+
+        [JsonPropertyName("european_aqi")]
+        public double? EuropeanAqi { get; set; }
+
+        [JsonPropertyName("pm10")]
+        public double? Pm10 { get; set; }
+
+        [JsonPropertyName("pm2_5")]
+        public double? Pm25 { get; set; }
+
+        [JsonPropertyName("carbon_monoxide")]
+        public double? CarbonMonoxide { get; set; }
+
+        [JsonPropertyName("nitrogen_dioxide")]
+        public double? NitrogenDioxide { get; set; }
+
+        [JsonPropertyName("sulphur_dioxide")]
+        public double? SulphurDioxide { get; set; }
+
+        [JsonPropertyName("ozone")]
+        public double? Ozone { get; set; }
+
+        [JsonPropertyName("uv_index")]
+        public double? UvIndex { get; set; }
+
+        [JsonPropertyName("alder_pollen")]
+        public double? AlderPollen { get; set; }
+
+        [JsonPropertyName("birch_pollen")]
+        public double? BirchPollen { get; set; }
+
+        [JsonPropertyName("grass_pollen")]
+        public double? GrassPollen { get; set; }
+
+        [JsonPropertyName("ragweed_pollen")]
+        public double? RagweedPollen { get; set; }
+    }
+
     public class GeocodingResponse
     {
         [JsonPropertyName("results")]
