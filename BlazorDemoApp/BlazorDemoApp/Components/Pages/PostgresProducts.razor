@@ -172,7 +172,7 @@
                             <td>
                                 <span class="badge bg-secondary">@(prod.Category?.Name ?? "ID: " + prod.CategoryId)</span>
                             </td>
-                            <td class="fw-bold text-nowrap">@prod.Price.ToString("C")</td>
+                            <td class="fw-bold text-nowrap">@prod.Price.ToString("N2") PLN</td>
                             <td>
                                 @if (prod.StockQuantity > 5)
                                 {

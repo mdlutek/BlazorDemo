@@ -4,8 +4,14 @@ using BlazorDemoApp.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Azure.Cosmos;
 using MongoDB.Driver;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Ustawienie polskiej kultury dla serwera Linux na Azure
+var cultureInfo = new CultureInfo("pl-PL");
+CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
