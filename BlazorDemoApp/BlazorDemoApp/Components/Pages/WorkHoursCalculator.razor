@@ -1,0 +1,355 @@
+﻿@page "/work-hours"
+@using Models
+@using System.Globalization
+@inject HttpClient Http
+@inject ILogger<WorkHoursCalculator> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Kalkulator godzin pracowniczych - Dni Robocze i święta</PageTitle>
+
+<div class="container mt-4 mb-5">
+    <!-- Nagłówek -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h1>💼 Kalkulator czasu pracy i płac</h1>
+            <p class="text-muted mb-0">
+                Wyliczanie godzin roboczych i wynagrodzenia z uwzględnieniem polskich świąt ustawowych (Nager.Date API).
+            </p>
+        </div>
+        <span class="badge bg-primary fs-6 px-3 py-2">Kadry & Płace (.NET)</span>
+    </div>
+
+    <hr />
+
+    <!-- Formularz Parametrów -->
+    <div class="card shadow-sm p-4 mb-4 bg-light border-0">
+        <div class="row g-3 align-items-end">
+            <!-- Wybór Miesiąca -->
+            <div class="col-md-3 col-sm-6">
+                <label class="form-label small fw-bold text-muted">Miesiąc:</label>
+                <select class="form-select" @bind="selectedMonth" @bind:after="Recalculate">
+                    @for (int m = 1; m <= 12; m++)
+                    {
+                        <option value="@m">@GetMonthName(m)</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Wybór Roku -->
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small fw-bold text-muted">Rok:</label>
+                <select class="form-select" @bind="selectedYear" @bind:after="OnYearChanged">
+                    @for (int y = DateTime.Now.Year - 2; y <= DateTime.Now.Year + 3; y++)
+                    {
+                        <option value="@y">@y</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Ilość godzin na dzień -->
+            <div class="col-md-3 col-sm-6">
+                <label class="form-label small fw-bold text-muted">Wymiar dobowy (h/dzień):</label>
+                <div class="input-group">
+                    <input type="number" min="1" max="24" step="0.5" class="form-control" @bind="dailyHours" @bind:after="Recalculate" />
+                    <span class="input-group-text">godz.</span>
+                </div>
+            </div>
+
+            <!-- Stawka za godzinę (PLN) -->
+            <div class="col-md-4 col-sm-6">
+                <label class="form-label small fw-bold text-muted">Stawka godzinowa (PLN/h):</label>
+                <div class="input-group">
+                    <input type="number" min="0" step="5" class="form-control" placeholder="np. 100" @bind="hourlyRate" @bind:after="Recalculate" />
+                    <span class="input-group-text">PLN/h</span>
+                </div>
+            </div>
+
+            <!-- Opcja Kodeksu Pracy (Święto w sobotę) -->
+            <div class="col-12 mt-2">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="chkSaturday" @bind="deductSaturdayHolidays" @bind:after="Recalculate" />
+                    <label class="form-check-label small text-muted" for="chkSaturday">
+                        Obniżaj wymiar za święta przypadające w <strong>sobotę</strong> (dzień wolny do odebrania wg art. 130 § 2 Kodeksu Pracy)
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="card shadow-sm p-5 text-center border-0 bg-light mb-4">
+            <div class="spinner-border text-primary mx-auto mb-2" role="status"></div>
+            <h5 class="text-muted">Pobieranie oficjalnych świąt z Nager.Date API dla roku @selectedYear...</h5>
+        </div>
+    }
+    else
+    {
+        <!-- Główne Kafelki Wynikowe -->
+        <div class="row g-3 mb-4">
+            <!-- 1. Godziny Robocze -->
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-0 bg-primary text-white p-3">
+                    <div class="small text-white-50">Wymiar czasu pracy:</div>
+                    <div class="display-5 fw-bold my-1">@totalWorkingHours h</div>
+                    <small class="text-white-50">@workingDays dni roboczych &times; @dailyHours h</small>
+                </div>
+            </div>
+
+            <!-- 2. Przewidywane Wynagrodzenie -->
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-0 text-white p-3" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                    <div class="small text-white-50">Szacowane wynagrodzenie:</div>
+                    <div class="display-5 fw-bold my-1">@totalEarnings.ToString("N2") PLN</div>
+                    <small class="text-white-50">@totalWorkingHours h &times; @hourlyRate.ToString("N2") PLN/h</small>
+                </div>
+            </div>
+
+            <!-- 3. Bilans Dni -->
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-0 bg-dark text-white p-3">
+                    <div class="small text-white-50">Bilans miesiąca:</div>
+                    <div class="display-5 fw-bold my-1">@totalDaysInMonth dni</div>
+                    <small class="text-white-50">Dni robocze: <strong>@workingDays</strong> | Dni wolne: <strong>@freeDays</strong></small>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Szczegółowa Analiza Dni w Miesiącu -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100 p-3 bg-light">
+                    <h5 class="fw-bold mb-3 text-secondary">📊 Rozbicie dni (@GetMonthName(selectedMonth) @selectedYear):</h5>
+                    
+                    <ul class="list-group list-group-flush rounded border bg-white mb-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>📅 Wszystkie dni w miesiącu:</span>
+                            <strong>@totalDaysInMonth dni</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>☕ Dni weekendowe (Soboty & Niedziele):</span>
+                            <span class="badge bg-secondary">@weekendDaysCount dni</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>🎉 Święta ustawowe (w dni robocze Pn-Pt):</span>
+                            <span class="badge bg-danger">@weekdayHolidaysCount dni wolnych</span>
+                        </li>
+                        @if (saturdayHolidaysCount > 0 && deductSaturdayHolidays)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center text-primary">
+                                <span>⚖️ Święta w sobotę (Art. 130 § 2 KP):</span>
+                                <span class="badge bg-primary">-@(saturdayHolidaysCount * dailyHours) h (do odebrania)</span>
+                            </li>
+                        }
+                        <li class="list-group-item d-flex justify-content-between align-items-center bg-light fw-bold text-success">
+                            <span>💼 Dni do przepracowania:</span>
+                            <span class="fs-5">@workingDays dni</span>
+                        </li>
+                    </ul>
+
+                    <small class="text-muted">
+                        * Obliczenia są zgodne z algorytmem Kodeksu Pracy dla 1-miesięcznego okresu rozliczeniowego.
+                    </small>
+                </div>
+            </div>
+
+            <!-- Lista Świąt w Wybranym Miesiącu -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100 p-3 bg-light">
+                    <h5 class="fw-bold mb-3 text-secondary">🎉 Święta ustawowo wolne w tym miesiącu:</h5>
+
+                    @if (monthHolidays == null || !monthHolidays.Any())
+                    {
+                        <div class="alert alert-info py-4 text-center my-auto">
+                            <h6>Brak świąt ustawowych w tym miesiącu</h6>
+                            <small class="text-muted">Wszystkie dni robocze są standardowymi dniami pracy.</small>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group">
+                            @foreach (var h in monthHolidays)
+                            {
+                                var date = h.ParsedDate;
+                                var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+
+                                <div class="list-group-item d-flex justify-content-between align-items-center bg-white mb-2 shadow-sm rounded border">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <span class="fs-3">🇵🇱</span>
+                                        <div>
+                                            <strong class="text-dark">@h.LocalName</strong>
+                                            <small class="text-muted d-block">
+                                                @date.ToString("dd.MM.yyyy") (@GetPolishDayOfWeek(date.DayOfWeek))
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <span class="badge @(isWeekend ? "bg-secondary" : "bg-danger")">
+                                        @(isWeekend ? (date.DayOfWeek == DayOfWeek.Saturday ? "Sobota (Odbiór)" : "Niedziela") : "Dzień wolny")
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private int selectedMonth = DateTime.Now.Month;
+    private int selectedYear = DateTime.Now.Year;
+    private double dailyHours = 8.0;
+    private decimal hourlyRate = 100.0m;
+    private bool deductSaturdayHolidays = true;
+    private bool isLoading = true;
+
+    // Pamięć podręczna świąt (aby nie odpytywać API przy każdej zmianie miesiąca tego samego roku)
+    private static readonly Dictionary<int, List<PublicHoliday>> HolidayCache = new();
+
+    private List<PublicHoliday>? yearHolidays;
+    private List<PublicHoliday>? monthHolidays;
+
+    private int totalDaysInMonth;
+    private int weekendDaysCount;
+    private int weekdayHolidaysCount;
+    private int saturdayHolidaysCount;
+    private int workingDays;
+    private double totalWorkingHours;
+    private decimal totalEarnings;
+    private int freeDays => totalDaysInMonth - workingDays;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHolidaysAndCalculate();
+    }
+
+    private async Task OnYearChanged()
+    {
+        await LoadHolidaysAndCalculate();
+    }
+
+    private async Task LoadHolidaysAndCalculate()
+    {
+        isLoading = true;
+
+        try
+        {
+            if (HolidayCache.TryGetValue(selectedYear, out var cached))
+            {
+                yearHolidays = cached;
+            }
+            else
+            {
+                // Pobieranie polskich świąt z oficjalnego Nager.Date API
+                var url = $"https://date.nager.at/api/v3/PublicHolidays/{selectedYear}/PL";
+                yearHolidays = await Http.GetFromJsonAsync<List<PublicHoliday>>(url) ?? new();
+                HolidayCache[selectedYear] = yearHolidays;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Błąd podczas pobierania świąt z Nager.Date API");
+            yearHolidays = GetFallbackPolishHolidays(selectedYear);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        if (yearHolidays == null) return;
+
+        totalDaysInMonth = DateTime.DaysInMonth(selectedYear, selectedMonth);
+        var holidaysInMonth = yearHolidays
+            .Where(h => h.ParsedDate.Month == selectedMonth)
+            .OrderBy(h => h.ParsedDate)
+            .ToList();
+
+        monthHolidays = holidaysInMonth;
+
+        weekendDaysCount = 0;
+        weekdayHolidaysCount = 0;
+        saturdayHolidaysCount = 0;
+        int standardWorkingDays = 0;
+
+        for (int day = 1; day <= totalDaysInMonth; day++)
+        {
+            var date = new DateTime(selectedYear, selectedMonth, day);
+            var isHoliday = holidaysInMonth.Any(h => h.ParsedDate.Date == date.Date);
+
+            if (date.DayOfWeek == DayOfWeek.Sunday)
+            {
+                weekendDaysCount++;
+            }
+            else if (date.DayOfWeek == DayOfWeek.Saturday)
+            {
+                weekendDaysCount++;
+                if (isHoliday)
+                {
+                    saturdayHolidaysCount++;
+                }
+            }
+            else
+            {
+                // Dni robocze Pn-Pt
+                if (isHoliday)
+                {
+                    weekdayHolidaysCount++;
+                }
+                else
+                {
+                    standardWorkingDays++;
+                }
+            }
+        }
+
+        workingDays = standardWorkingDays;
+        if (deductSaturdayHolidays)
+        {
+            workingDays -= saturdayHolidaysCount;
+        }
+
+        workingDays = Math.Max(0, workingDays);
+        totalWorkingHours = workingDays * dailyHours;
+        totalEarnings = (decimal)totalWorkingHours * Math.Max(0, hourlyRate);
+    }
+
+    private string GetMonthName(int month)
+    {
+        return new DateTime(2024, month, 1).ToString("MMMM", new CultureInfo("pl-PL"));
+    }
+
+    private string GetPolishDayOfWeek(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "Poniedziałek",
+        DayOfWeek.Tuesday => "Wtorek",
+        DayOfWeek.Wednesday => "Środa",
+        DayOfWeek.Thursday => "Czwartek",
+        DayOfWeek.Friday => "Piątek",
+        DayOfWeek.Saturday => "Sobota",
+        DayOfWeek.Sunday => "Niedziela",
+        _ => ""
+    };
+
+    // Rezerwowa lista stałych polskich świąt w razie braku połączenia z API
+    private List<PublicHoliday> GetFallbackPolishHolidays(int year)
+    {
+        return new List<PublicHoliday>
+        {
+            new() { Date = $"{year}-01-01", LocalName = "Nowy Rok" },
+            new() { Date = $"{year}-01-06", LocalName = "Święto Trzech Króli" },
+            new() { Date = $"{year}-05-01", LocalName = "Święto Pracy" },
+            new() { Date = $"{year}-05-03", LocalName = "Święto Konstytucji 3 Maja" },
+            new() { Date = $"{year}-08-15", LocalName = "Wniebowzięcie NMP / Wojska Polskiego" },
+            new() { Date = $"{year}-11-01", LocalName = "Wszystkich Świętych" },
+            new() { Date = $"{year}-11-11", LocalName = "Święto Niepodległości" },
+            new() { Date = $"{year}-12-25", LocalName = "Boże Narodzenie (pierwszy dzień)" },
+            new() { Date = $"{year}-12-26", LocalName = "Boże Narodzenie (drugi dzień)" }
+        };
+    }    
+}

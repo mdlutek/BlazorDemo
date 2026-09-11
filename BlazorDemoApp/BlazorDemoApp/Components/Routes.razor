@@ -1,9 +1,17 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="new[] { typeof(BlazorDemoApp.Client._Imports).Assembly }">
+﻿<Router AppAssembly="@typeof(Program).Assembly" 
+    AdditionalAssemblies="new[] { typeof(BlazorDemoApp.Client._Imports).Assembly }">
+    <!-- Router - komponent Blazor odpowiedzialny za routing po stronie klienta -->
+    <!-- AppAssembly - assembly, w którym Router szuka stron (page) -->
+    <!-- AdditionalAssemblies - dorzuca dodatkowe assembly do przeszukania (tu: projekt Client) -->
+    
     <Found Context="routeData">
+        <!-- Found - trasa znaleziona, renderuje RouteView -->
         <RouteView RouteData="routeData" DefaultLayout="typeof(BlazorDemoApp.Client.Layout.MainLayout)" />
+        <!-- FocusOnNavigate - po nawigacji ustawia fokus na element pasujący do selektora (a11y) -->
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>
+        <!-- NotFound - brak dopasowanej trasy, własny layout + komunikat -->
         <LayoutView Layout="typeof(BlazorDemoApp.Client.Layout.MainLayout)">
             <p role="alert">Sorry, there's nothing at this address.</p>
         </LayoutView>

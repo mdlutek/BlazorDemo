@@ -5,17 +5,27 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <!-- ResourcePreloader - nowość .NET 9, wstrzykuje <link rel="preload"> dla zasobów
+         wymaganych do pierwszego renderu, przyspiesza start -->
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
-    <link rel="stylesheet" href="@Assets["BlazorDemoApp.styles.css"]" />
+    <link rel="stylesheet" href="@Assets["BlazorDemoApp.styles.css"]" />    
+    <!-- ImportMap - generuje mapę modułów JS (import maps), potrzebne dla JS interop
+         z izolacją modułów w komponentach -->
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
+    <!-- HeadOutlet - pozwala komponentom (np. przez PageTitle/HeadContent) wstrzykiwać
+         treść do <head> mimo że sami renderują się w <body> -->
     <HeadOutlet/>
 </head>
 
 <body>
+    <!-- Routes - właściwy komponent routingu (to on w środku zawiera Router,
+         który widziałem w poprzednim pliku) -->
     <Routes />
+    <!-- ReconnectModal - UI pokazywane, gdy Blazor Server traci połączenie SignalR
+         i próbuje się reconnectować -->
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 
