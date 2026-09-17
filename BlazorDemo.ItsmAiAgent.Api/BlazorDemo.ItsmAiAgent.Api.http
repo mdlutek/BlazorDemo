@@ -1,0 +1,20 @@
+@baseUrl = https://localhost:7215
+
+### 1. Generujemy wektor dla pierwszego rekordu TICK-101 (wywołaj raz)
+POST {{baseUrl}}/api/chat/seed
+
+### 2. Test RAG (Pytamy o VPN - Agent powinien znaleźć rozwiązanie w Cosmos DB)
+POST {{baseUrl}}/api/chat
+Content-Type: application/json
+
+{
+  "message": "Cześć, nie mogę połączyć się z siecią firmową. Wyskakuje mi jakiś błąd 800 na VPN, co mam zrobić?"
+}
+
+### 3. Test Tool Calling (Tworzenie ticketu - Agent powinien założyć zgłoszenie w Cosmos DB)
+POST {{baseUrl}}/api/chat
+Content-Type: application/json
+
+{
+  "message": "Niestety restart nie pomógł, proszę załóż mi pilny ticket na awarię VPN, kategoria Network."
+}

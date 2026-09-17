@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="BlazorDemo.Functions/BlazorDemo.Functions.csproj" Id="c5183e95-8545-4aee-a2bb-9a202b002473" />
+  <Project Path="BlazorDemo.ItsmAiAgent.Api/BlazorDemo.ItsmAiAgent.Api.csproj" Id="836a7d91-b5c6-4c61-8ebb-90d1056bab49" />
   <Project Path="BlazorDemoApp/BlazorDemoApp.Client/BlazorDemoApp.Client.csproj" />
   <Project Path="BlazorDemoApp/BlazorDemoApp/BlazorDemoApp.csproj" />
 </Solution>
