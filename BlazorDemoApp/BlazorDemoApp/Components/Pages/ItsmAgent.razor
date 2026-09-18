@@ -173,8 +173,8 @@
     private bool isLoadingTickets = true;
     private bool isSending = false;
 
-    // Pobieranie adresu API z appsettings.json lub fallback na localhost:7215
-    private string ApiBaseUrl => Configuration["ItsmApi:BaseUrl"] ?? "https://localhost:7215";
+    private string ApiBaseUrl => Configuration["ItsmApi:BaseUrl"]
+    ?? "https://itsm-api-g8hjgjhkf5bybbdn.polandcentral-01.azurewebsites.net";
 
     protected override async Task OnInitializedAsync()
     {
