@@ -5,6 +5,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Azure.Cosmos;
 using MongoDB.Driver;
 using System.Globalization;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
+
 
 // Standardowy "builder pattern" w ASP.NET Core (od .NET 6+ minimal hosting model).
 // Zastępuje starą parę Startup.cs + Program.cs znaną z .NET Core 3.1 / .NET 5.
@@ -29,6 +34,18 @@ CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
+
+// Konfiguracja uwierzytelniania ciasteczkowego (Cookie Auth)
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.ExpireTimeSpan = TimeSpan.FromDays(30); // Pamiętaj zalogowanie przez 30 dni
+        options.SlidingExpiration = true;
+    });
+
+builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
 
 // AddDbContextFactory zamiast zwykłego AddDbContext.
 // Dobra decyzja w kontekście Blazor Server: DbContext NIE jest thread-safe,
@@ -105,6 +122,9 @@ app.UseHttpsRedirection();
 // (EditForm) w Blazor.
 app.UseAntiforgery();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Nowe API z .NET 8/9 do serwowania plików statycznych z automatycznym
 // fingerprintingiem/cache busting (zastępuje częściowo app.UseStaticFiles()).
 app.MapStaticAssets();
@@ -116,5 +136,52 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(BlazorDemoApp.Client._Imports).Assembly);
+
+// Endpoint logowania (obsługuje formularz POST i wywołuje zapis hasła w przeglądarce)
+app.MapPost("/api/auth/login", async (
+    HttpContext httpContext,
+    [FromForm] string username,
+    [FromForm] string password,
+    [FromForm] string? returnUrl,
+    IConfiguration config) =>
+{
+    var expectedUser = config["AdminAuth:Username"];
+    var expectedPass = config["AdminAuth:Password"];
+
+    // Porównanie z danymi z User Secrets / Azure
+    if (username == expectedUser && password == expectedPass)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.Name, username),
+            new Claim(ClaimTypes.Role, "Admin")
+        };
+
+        var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var authProperties = new AuthenticationProperties
+        {
+            IsPersistent = true, // Ciasteczko trwałe (przeglądarka pamięta sesję)
+            ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30)
+        };
+
+        await httpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(claimsIdentity),
+            authProperties);
+
+        var redirect = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : "/work-hours";
+        return Results.Redirect(redirect);
+    }
+
+    // W razie błędu wróć na stronę logowania z parametrem błędu
+    return Results.Redirect($"/login?error=1&returnUrl={Uri.EscapeDataString(returnUrl ?? "/work-hours")}");
+}).DisableAntiforgery();
+
+// Endpoint wylogowania
+app.MapPost("/api/auth/logout", async (HttpContext httpContext) =>
+{
+    await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/");
+}).DisableAntiforgery();
 
 app.Run();

@@ -1,0 +1,63 @@
+﻿@page "/login"
+
+<PageTitle>Logowanie - Dostęp Autoryzowany</PageTitle>
+
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 75vh;">
+    <div class="card shadow-lg border-0 p-4" style="max-width: 440px; width: 100%; border-radius: 16px;">
+        <div class="card-body">
+            <div class="text-center mb-4">
+                <div class="display-4 mb-2">🔐</div>
+                <h3 class="fw-bold text-dark">Strefa Prywatna</h3>
+                <p class="text-muted small">
+                    Kalkulator czasu pracy jest dostępny wyłącznie dla zalogowanego administratora.
+                </p>
+            </div>
+
+            @if (hasError)
+            {
+                <div class="alert alert-danger py-2 small text-center" role="alert">
+                    ❌ Nieprawidłowy identyfikator lub klucz dostępu!
+                </div>
+            }
+
+            <!-- Standardowy formularz POST rozpoznawany przez menedżery haseł w przeglądarkach -->
+            <form method="post" action="/api/auth/login">
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Identyfikator użytkownika:</label>
+                    <input type="text"
+                           name="username"
+                           class="form-control"
+                           autocomplete="username"
+                           placeholder="Wpisz identyfikator..."
+                           required />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-muted">Klucz autoryzacyjny (Hasło):</label>
+                    <input type="password"
+                           name="password"
+                           class="form-control"
+                           autocomplete="current-password"
+                           placeholder="Wpisz klucz dostępu..."
+                           required />
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">
+                    Odblokuj dostęp &rarr;
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int? error { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? returnUrl { get; set; }
+
+    private bool hasError => error == 1;
+}

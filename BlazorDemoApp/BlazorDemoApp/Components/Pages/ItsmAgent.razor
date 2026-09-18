@@ -8,7 +8,7 @@
 <PageTitle>ITSM AI Agent Demo</PageTitle>
 
 <div class="container mt-4 mb-5">
-    <!-- Spójny nagłówek z Twojego szablonu -->
+    <!-- Nagłówek modułu -->
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
         <div>
             <h1>🤖 ITSM AI Copilot</h1>
@@ -21,7 +21,47 @@
 
     <hr />
 
-    <!-- Baner błędów w Twoim stylu -->
+    <!-- SEKCJA: W BUDOWIE / ROADMAP -->
+    <div class="card border-warning bg-light mb-4 shadow-sm">
+        <div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="fs-4">🚧</span>
+                <h5 class="card-title text-dark mb-0 fw-bold">Moduł w ciągłym rozwoju (Wersja demonstracyjna / MVP)</h5>
+                <span class="badge bg-warning text-dark ms-auto">W budowie</span>
+            </div>
+            <p class="card-text text-muted small mb-3">
+                Aktualna wersja demonstruje integrację Semantic Kernel, Function Calling oraz wektorowego RAG w Azure Cosmos DB. W kolejnych iteracjach planowane są następujące funkcjonalności:
+            </p>
+            <div class="row g-2 small">
+                <div class="col-md-6 col-lg-3">
+                    <div class="p-2 bg-white rounded border border-warning-subtle h-100">
+                        <strong class="text-dark">🖥️ Pełne wsparcie biurowe:</strong>
+                        <div class="text-muted mt-1">Rozszerzona baza wiedzy na każde pytanie z zakresu sprzętu biurowego i oprogramowania.</div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="p-2 bg-white rounded border border-warning-subtle h-100">
+                        <strong class="text-dark">🤖 Edycja ticketów przez LLM:</strong>
+                        <div class="text-muted mt-1">Możliwość modyfikacji priorytetów i dopisywania notatek technicznych przez Agenta AI.</div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="p-2 bg-white rounded border border-warning-subtle h-100">
+                        <strong class="text-dark">✍️ Ręczna edycja i statusy:</strong>
+                        <div class="text-muted mt-1">Formularz manualnej edycji treści zgłoszenia oraz ręcznej zmiany statusu (Open &rarr; Resolved).</div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="p-2 bg-white rounded border border-warning-subtle h-100">
+                        <strong class="text-dark">📊 Zaawansowane zarządzanie:</strong>
+                        <div class="text-muted mt-1">Filtrowanie, kategoryzacja, przypisywanie do inżynierów oraz analityka SLA.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Komunikat o błędzie -->
     @if (!string.IsNullOrEmpty(errorMessage))
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -101,7 +141,7 @@
             </div>
         </div>
 
-        <!-- PRAWA KOLUMNA: LISTA ZGŁOSZEŃ Z COSMOS DB W TWOIM STYLU -->
+        <!-- PRAWA KOLUMNA: LISTA ZGŁOSZEŃ Z COSMOS DB -->
         <div class="col-lg-6">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="mb-0">Zgłoszenia w kontenerze Tickets:</h4>
@@ -174,11 +214,10 @@
     private bool isSending = false;
 
     private string ApiBaseUrl => Configuration["ItsmApi:BaseUrl"]
-    ?? "https://itsm-api-g8hjgjhkf5bybbdn.polandcentral-01.azurewebsites.net";
+        ?? "https://itsm-api-g8hjgjhkf5bybbdn.polandcentral-01.azurewebsites.net";
 
     protected override async Task OnInitializedAsync()
     {
-        // Spójny wzorzec 0 ms z Twojego projektu
         _ = LoadTicketsInBackgroundAsync();
         await Task.CompletedTask;
     }
@@ -241,7 +280,6 @@
                     Time = DateTime.Now
                 });
 
-                // Automatycznie odśwież listę zgłoszeń, bo model mógł utworzyć ticket w C#
                 await LoadTickets();
             }
             else if ((int)response.StatusCode == 429)
@@ -278,7 +316,6 @@
         }
     }
 
-    // Spójne metody pomocnicze do badge'y z Twojego szablonu
     private string GetPriorityBadge(string priority) => priority switch
     {
         "High" => "bg-danger",
